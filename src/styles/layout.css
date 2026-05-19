@@ -1,20 +1,21 @@
 :root {
-  /* 고정 높이 / 너비 (px 혹은 rem으로도 지정 가능) */
+  /* layout 레벨 (전체 구조 간격) */
+  --layout-gap: 10px;
+
+  /* content 내부 (top / bottom 사이) */
+  --content-top-bottom-gap: 30px;
+
+  /* top grid 내부 gap */
+  --top-grid-row-gap: 30px;
+  --top-grid-col-gap: 10px;
+
+  /* sizing */
   --header-height: 60px;
   --footer-height: 48px;
-
-  /* 사이드바 고정 너비 */
   --sidebar-width: 220px;
 
-  /* 콘텐츠 영역 내 위/아래 비율 (number -> grid fr 단위로 사용)
-     예: 위 2, 아래 1 이면 위가 아래보다 2배 높음 */
   --content-top-ratio: 2;
   --content-bottom-ratio: 1;
-
-  /* 공통 간격 */
-  --gap: 10px;
-  /* 콘텐츠 상하 영역 간격 (top / bottom 사이) */
-  --content-row-gap: 35px;
 }
 
 html, body, #app {
@@ -41,10 +42,11 @@ html, body, #app {
 
 .content-area {
   display: grid;
-  grid-template-rows: calc(var(--content-top-ratio) * 1fr) calc(var(--content-bottom-ratio) * 1fr);
-  row-gap: var(--content-row-gap); /* top과 bottom 사이 간격 */
-  column-gap: var(--gap); /* 내부 컬럼(예: top-grid)의 간격 */
-  padding: var(--gap);
+  grid-template-rows: calc(var(--content-top-ratio) * 1fr)
+                      calc(var(--content-bottom-ratio) * 1fr);
+
+  row-gap: var(--content-gap); /* top / bottom 사이만 */
+  padding: var(--layout-gap);   /* layout spacing */
   overflow: auto;
 }
 
@@ -52,7 +54,9 @@ html, body, #app {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   grid-template-rows: repeat(2, 1fr);
-  gap: var(--gap);
+
+  row-gap: var(--top-grid-row-gap);
+  column-gap: var(--top-grid-col-gap);
 }
 
 .card {

@@ -1,5 +1,5 @@
 <template>
-  <div class="dashboard" style="height:100%; display:grid; grid-template-rows: calc(var(--content-top-ratio) * 1fr) calc(var(--content-bottom-ratio) * 1fr); gap: var(--content-row-gap);">
+  <div class="dashboard" style="height:100%; display:grid; grid-template-rows: calc(var(--content-top-ratio) * 1fr) calc(var(--content-bottom-ratio) * 1fr); row-gap: var(--content-top-bottom-gap);">
     <ContentTopGrid />
     <ContentBottom />
   </div>
