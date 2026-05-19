@@ -1,9 +1,12 @@
 <template>
-	<router-view />
+  <div id="app">
+    <router-view />
+  </div>
 </template>
 
-<script setup lang="ts"></script>
-
 <style>
-/* App-level styling can go here if needed */
+html, body, #app {
+  height: 100%;
+  margin: 0;
+}
 </style>
