@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Robot Core Web
 
 Vue 3 + TypeScript + Vite 기반 개발 템플릿입니다.
@@ -31,8 +30,3 @@ TypeScript 기반 설정 및 composable:
 
 - 기본 값과 타입은 `src/config/layout.ts`에 정의되어 있습니다 (`defaultLayout`, `LayoutRatios`).
 - 런타임에서 값을 변경하려면 `src/composables/useLayout.ts`의 `useLayout()`을 사용하세요. 예: `const { layout, setLayout } = useLayout()`.
-
-=======
-# Robot_Core_Web
-순찰로봇 코어 개발을 위한 테스트 웹 페이지
->>>>>>> 2aa3ce791fe54d61f6ded041ac39b3699e3d5728
