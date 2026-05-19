@@ -1,6 +1,8 @@
 <template>
-  <div class="content-bottom card">
-    <div style="width:100%">Bottom content area — expand with charts / tables / lists.</div>
+  <div class="content-bottom">
+    <div class="card">
+      <div style="width:100%">Bottom content area — expand with charts / tables / lists.</div>
+    </div>
   </div>
 </template>
 

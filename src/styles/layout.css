@@ -12,7 +12,9 @@
   --content-bottom-ratio: 1;
 
   /* 공통 간격 */
-  --gap: 12px;
+  --gap: 10px;
+  /* 콘텐츠 상하 영역 간격 (top / bottom 사이) */
+  --content-row-gap: 35px;
 }
 
 html, body, #app {
@@ -40,7 +42,8 @@ html, body, #app {
 .content-area {
   display: grid;
   grid-template-rows: calc(var(--content-top-ratio) * 1fr) calc(var(--content-bottom-ratio) * 1fr);
-  gap: var(--gap);
+  row-gap: var(--content-row-gap); /* top과 bottom 사이 간격 */
+  column-gap: var(--gap); /* 내부 컬럼(예: top-grid)의 간격 */
   padding: var(--gap);
   overflow: auto;
 }
@@ -63,7 +66,20 @@ html, body, #app {
 }
 
 .content-bottom {
-  background: transparent;
+  /* 하단 콘텐츠 영역 배경과 구분선으로 경계를 명확히 함
+     padding은 부모(.content-area)의 패딩과 동일하게 처리하여
+     top 영역과 가로 정렬을 맞춤 */
+  background: linear-gradient(180deg, #f5f7fa 0%, #eef3f8 100%);
+  border-top: 1px solid rgba(16,24,40,0.06);
+  padding: 0; /* 부모 패딩이 이미 존재함 */
+  box-sizing: border-box;
+}
+
+.content-bottom .card {
+  background: white;
+  box-shadow: 0 1px 2px rgba(16,24,40,0.04);
+  height: 100%;
+  padding: 12px; /* 카드 내부 여백은 카드에서 담당 */
 }
 
 /* Header/Footer common */
