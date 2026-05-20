@@ -1,6 +1,6 @@
 <template>
   <div class="top-grid">
-    <div v-for="i in 6" :key="i" class="card">Card {{ i }}</div>
+    <div v-for="i in 6" :key="i" class="card">Camera {{ i }}</div>
   </div>
 </template>
 

@@ -36,8 +36,11 @@
 
 <script setup lang="ts">
 import { reactive, computed } from 'vue'
-import ContentTopGrid from '../components/ContentTopGrid.vue'
-import ContentBottom from '../components/ContentBottom.vue'
+import RobotController from '../components/RobotController.vue'
+import RobotCamGrid from '../components/RobotCamGrid.vue'
+import RobotMessage from '../components/RobotMessage.vue'
+import RobotInfo from '../components/RobotInfo.vue'
+import RobotEvent from '../components/RobotEvent.vue'
 
 // 레이아웃 변수: Dashboard에서 제어 (top-grid gaps, center gap)
 const layoutVars = reactive({
@@ -62,14 +65,14 @@ const contents = reactive({
   left: {
     enabled: true,
     ratio: 0.22,
-    component: Placeholder,
-    props: { text: 'Left panel' },
+    component: RobotInfo,
+    props: {},
   },
   center: {
     // top / bottom은 실제 컴포넌트(또는 문자열 이름)를 넣어 교체 가능
-    top: { component: ContentTopGrid, props: {} },
-    middle: { component: Placeholder, props: { text: 'Center middle' } },
-    bottom: { component: ContentBottom, props: {} },
+    top: { component: RobotCamGrid, props: {} },
+    middle: { component: RobotMessage, props: {} },
+    bottom: { component: RobotController, props: {} },
     // 가운데를 분할하는 비율 (0~1)
     topRatio: 0.45,
     middleRatio: 0.04,
@@ -79,8 +82,8 @@ const contents = reactive({
   right: {
     enabled: true,
     ratio: 0.21,
-    component: Placeholder,
-    props: { text: 'Right panel' },
+    component: RobotEvent,
+    props: {},
   },
 })
 
