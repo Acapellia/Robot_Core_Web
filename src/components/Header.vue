@@ -73,7 +73,7 @@ const { currentTime } = useHeader();
   flex-direction: column;
   align-items: flex-end; /* 오른쪽 정렬 고정 */
   justify-content: center;
-  gap: 2px;
+  gap: 4px;
 }
 
 .user-name {
