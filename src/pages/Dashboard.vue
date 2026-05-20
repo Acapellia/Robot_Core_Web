@@ -6,7 +6,17 @@
         v-if="contents.left.enabled"
         :style="{ flex: `${contents.left.ratio} 1 0%` }"
       >
-        <component :is="contents.left.component" v-bind="contents.left.props" />
+        <div class="left-container" :style="leftContainerStyle">
+          <div class="left-top" :style="leftTopStyle">
+            <component :is="contents.left.top.component" v-bind="contents.left.top.props" />
+          </div>
+          <div class="left-middle" :style="leftMiddleStyle">
+            <component :is="contents.left.middle.component" v-bind="contents.left.middle.props" />
+          </div>
+          <div class="left-bottom" :style="leftBottomStyle">
+            <component :is="contents.left.bottom.component" v-bind="contents.left.bottom.props" />
+          </div>
+        </div>
       </div>
 
       <div class="panel center" :style="{ flex: `${contents.center.ratio} 1 0%` }">
@@ -41,6 +51,8 @@ import RobotCamGrid from '../components/RobotCamGrid.vue'
 import RobotMessage from '../components/RobotMessage.vue'
 import RobotInfo from '../components/RobotInfo.vue'
 import RobotEvent from '../components/RobotEvent.vue'
+import RobotSelect from '../components/RobotSelect.vue'
+import RobotMap from '../components/RobotMap.vue'
 
 // 레이아웃 변수: Dashboard에서 제어 (top-grid gaps, center gap)
 const layoutVars = reactive({
@@ -65,8 +77,15 @@ const contents = reactive({
   left: {
     enabled: true,
     ratio: 0.22,
-    component: RobotInfo,
-    props: {},
+    // 세로 3 영역: select / info / map
+    top: { component: RobotSelect, props: {} },
+    middle: { component: RobotInfo, props: {} },
+    bottom: { component: RobotMap, props: {} },
+    // 비율 (0~1)
+    topRatio: 0.35,
+    middleRatio: 0.15,
+    // gap between left sub-areas (CSS length)
+    gap: '15px',
   },
   center: {
     // top / bottom은 실제 컴포넌트(또는 문자열 이름)를 넣어 교체 가능
@@ -90,6 +109,12 @@ const contents = reactive({
 const centerTopStyle = computed(() => ({ flex: `${contents.center.topRatio} 1 0%`, minHeight: '0' }))
 const centerMiddleStyle = computed(() => ({ flex: `${contents.center.middleRatio} 1 0%`, minHeight: '0' }))
 const centerBottomStyle = computed(() => ({ flex: `${1 - contents.center.topRatio - contents.center.middleRatio} 1 0%`, minHeight: '0' }))
+
+const leftTopStyle = computed(() => ({ flex: `${contents.left.topRatio} 1 0%`, minHeight: '0' }))
+const leftMiddleStyle = computed(() => ({ flex: `${contents.left.middleRatio} 1 0%`, minHeight: '0' }))
+const leftBottomStyle = computed(() => ({ flex: `${1 - contents.left.topRatio - contents.left.middleRatio} 1 0%`, minHeight: '0' }))
+
+const leftContainerStyle = computed(() => ({ display: 'flex', flexDirection: 'column', gap: contents.left.gap, minHeight: '0' }))
 </script>
 
 <style scoped>
@@ -105,4 +130,9 @@ const centerBottomStyle = computed(() => ({ flex: `${1 - contents.center.topRati
 .center-top, .center-middle, .center-bottom { overflow: auto; min-height: 0; }
 .placeholder { padding: 12px; color: var(--muted-color, #666); }
 .center-middle .card { height: 100%; }
+
+/* Left panel sub-areas */
+.left-container { height: 100%; min-height: 0; }
+.left-top, .left-middle, .left-bottom { overflow: auto; min-height: 0; }
+.left-middle .card { height: 100%; }
 </style>
