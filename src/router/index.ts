@@ -8,8 +8,9 @@ const routes = [
     path: '/',
     component: MainLayout,
     children: [
-      { path: '', component: Dashboard },
-      { path: 'other', component: OtherPage }
+      { path: 'robots', component: Dashboard },
+      { path: 'settings', component: OtherPage },
+      { path: 'statistics', component: OtherPage }
     ]
   }
 ]

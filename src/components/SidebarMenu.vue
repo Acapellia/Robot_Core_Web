@@ -2,8 +2,9 @@
   <aside class="sidebar-area">
     <nav class="sidebar-menu">
       <ul>
-        <li @click="go('/')">Dashboard</li>
-        <li @click="go('/other')">Other Page</li>
+        <li @click="go('/robots')">Ro</li>
+        <li @click="go('/settings')">Se</li>
+        <li @click="go('/statistics')">St</li>
       </ul>
     </nav>
   </aside>
