@@ -71,6 +71,7 @@ const { events, isLoading, error, downloadLogCsv } = useRobotEvents();
   font-family: 'Segoe UI', Arial, sans-serif;
   background-color: #ffffff;
   border-radius: 16px;
+  border: 1px solid rgba(13, 27, 34, 0.2); /* 얇은 테두리 추가 */
   display: flex;
   flex-direction: column;
 }
