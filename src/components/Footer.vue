@@ -1,7 +1,7 @@
 <template>
   <footer class="app-footer">
-    <div>© Robot Core</div>
-    <div style="margin-left:auto; font-size:0.9rem; opacity:0.9">v0.1</div>
+    <div>© Intellivix  -  Argos</div>
+    <div style="margin-left:auto; font-size:0.9rem; opacity:0.9">v 0.0.1</div>
   </footer>
 </template>
 
