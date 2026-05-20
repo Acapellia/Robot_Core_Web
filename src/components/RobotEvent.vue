@@ -7,9 +7,7 @@
         </svg>
         EVENT STREAM
       </h3>
-      <button class="refresh-btn" @click="fetchEvents" :disabled="isLoading" title="새로고침">
-        🔄
-      </button>
+      
     </div>
 
     <div class="main-content">
@@ -55,7 +53,7 @@
 <script setup lang="ts">
 import { useRobotEvents } from '../composables/VisRobotEvents';
 
-const { events, isLoading, error, fetchEvents, downloadLogCsv } = useRobotEvents();
+const { events, isLoading, error, downloadLogCsv } = useRobotEvents();
 </script>
 
 <style scoped>
@@ -98,7 +96,6 @@ const { events, isLoading, error, fetchEvents, downloadLogCsv } = useRobotEvents
   gap: 8px;
 }
 .icon { width: 16px; height: 16px; }
-.refresh-btn { background: none; border: none; cursor: pointer; font-size: 14px; }
 
 /* 💡 변경 포인트: 패딩을 없애고 100% 확장 */
 .main-content {
@@ -113,7 +110,7 @@ const { events, isLoading, error, fetchEvents, downloadLogCsv } = useRobotEvents
 .stream-wrapper {
   position: relative;
   padding-left: 28px; /* 타임라인 선과 왼쪽 끝 정렬 여백 */
-  padding-right: 12px; /* 스트림 카드가 우측 벽에 붙지 않도록 미세 여백 */
+  padding-right: 15px; /* 스트림 카드가 우측 벽에 붙지 않도록 미세 여백 */
 }
 
 /* 세로 가이드 선 (padding-left 값에 맞춰 좌측 배치 조정) */
@@ -122,7 +119,7 @@ const { events, isLoading, error, fetchEvents, downloadLogCsv } = useRobotEvents
   left: 13px;
   top: 10px;
   bottom: 10px;
-  width: 2px;
+  width: 3px;
   background-color: #e9edf7;
 }
 
@@ -132,7 +129,7 @@ const { events, isLoading, error, fetchEvents, downloadLogCsv } = useRobotEvents
   margin: 0;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
 }
 
 .event-item {
@@ -145,7 +142,7 @@ const { events, isLoading, error, fetchEvents, downloadLogCsv } = useRobotEvents
 /* 타임라인 왼쪽 점 위치 조정 */
 .timeline-dot {
   position: absolute;
-  left: -19px;
+  left: -18px;
   top: 14px;
   width: 10px;
   height: 10px;
