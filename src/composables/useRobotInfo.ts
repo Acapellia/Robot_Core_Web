@@ -43,9 +43,10 @@ export function useRobotInfo() {
         mockDetail.battery = main.telemetry.battery ?? mockDetail.battery;
         mockDetail.currentMap = main.telemetry.currentMap ?? mockDetail.currentMap;
         mockDetail.uptime = main.telemetry.uptime ?? mockDetail.uptime;
+        robotInfo.value = mockDetail;
+      } else {
+        robotInfo.value = null;
       }
-
-      robotInfo.value = mockDetail;
 
     } catch (err) {
       console.error('로봇 상세 정보를 가져오는 중 오류 발생:', err);
