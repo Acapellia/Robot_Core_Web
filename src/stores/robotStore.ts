@@ -53,7 +53,7 @@ export const useRobotStore = defineStore('robot', () => {
                 } 
                 // 2. 개별 로봇 텔레메트리 업데이트 패킷인 경우
                 else if (payload.type === 'ROBOT_STATE_UPDATE') {
-                    UpdateRobotStates(payload.robot_states);
+                    updateRobotStates(payload.robot_states);
                 }
             } catch (error) {
                 console.error('스토어 실시간 소켓 바인딩 실패:', error);
@@ -94,7 +94,7 @@ export const useRobotStore = defineStore('robot', () => {
         }
     };
 
-    const UpdateRobotStates = (robotStates: RobotItem[]) => {
+    const updateRobotStates = (robotStates: RobotItem[]) => {
         robotStates.forEach((updated) => {
             const existing = robots.value.find(r => r.id === updated.id);
             if (existing) {

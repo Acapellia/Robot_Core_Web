@@ -18,24 +18,57 @@ export const useEventStore = defineStore('event', () => {
   const events = ref<RobotEvent[]>(INITIAL_EVENTS);
   const isLoading = ref(false);
   const error = ref<string | null>(null);
-  let timerId: ReturnType<typeof setInterval> | null = null;
+  let socket: WebSocket | null = null;
 
-  async function fetchEvents() {
+  function connectWebSocket() {
+    if (socket) return;
 
+    isLoading.value = true;
+    socket = new WebSocket('ws://localhost:8000/ws/robots/events');
+
+    socket.onmessage = (ev) => {
+      try {
+        const response = JSON.parse(ev.data);
+        const payload = response.payload;
+
+        if (!payload) return;
+
+        if (payload.type === 'ROBOT_EVENT_UPDATE') {
+          updateEventList(payload.robot_events);
+        }
+      } catch (err) {
+        console.error('eventStore websocket message parse failed:', err);
+      } finally {
+        isLoading.value = false;
+      }
+    };
+
+    socket.onclose = () => {
+      console.warn('Event websocket closed, retrying in 3s');
+      socket = null;
+      setTimeout(connectWebSocket, 3000);
+    };
+
+    socket.onerror = (err) => {
+      console.error('Event websocket error:', err);
+      error.value = '웹소켓 에러';
+    };
   }
 
-  // No dev simulation: events should come from backend or explicit actions
+  const updateEventList = (robotEvents: RobotEvent[]) => {
+    // 대입 말고 추가가 되어야 함
+    // events.value = robotEvents;
+    events.value = [...robotEvents, ...events.value].slice(0, 100);
+  };
 
-  function startMonitoring(intervalMs = 10000) {
-    if (timerId) return;
-    fetchEvents();
-    timerId = setInterval(fetchEvents, intervalMs);
+  function startMonitoring() {
+    connectWebSocket();
   }
 
   function stopMonitoring() {
-    if (timerId) {
-      clearInterval(timerId);
-      timerId = null;
+    if (socket) {
+      socket.close();
+      socket = null;
     }
   }
 
@@ -51,5 +84,5 @@ export const useEventStore = defineStore('event', () => {
     document.body.removeChild(link);
   }
 
-  return { events, isLoading, error, fetchEvents, startMonitoring, stopMonitoring, downloadLogCsv };
+  return { events, isLoading, error, startMonitoring, stopMonitoring, downloadLogCsv };
 });

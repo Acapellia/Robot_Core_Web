@@ -86,7 +86,29 @@
     },
     {
         "id": "robot_event",
-        "title": "Robot Event",
+        "title": "Robot Event (single)",
+        "header": {
+            "version": "1.0",
+            "type": "robot_event",
+            "sessionid": "0",
+            "protocol_source": "AI",
+            "protocol_category": "EVENT",
+            "priority": 0
+        },
+        "payload": {
+            "robot_event": {
+                "event_id": 0,
+                "robot_id": "NEO-01",
+                "type": "UNKNOWN",
+                "time": ":00:00",
+                "message": "Single event sample."
+            },
+            "Status": { "StateCode": 1 }
+        }
+    },
+    {
+        "id": "robot_events",
+        "title": "Robot Events",
         "header": {
             "version": "1.0",
             "type": "robot_event",

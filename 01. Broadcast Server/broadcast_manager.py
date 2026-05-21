@@ -93,6 +93,32 @@ class MessageParser:
 
                 return parsed_data
             
+            elif "robot_events" in payload:
+                pinia_robot_events = []
+                for e in payload["robot_events"]:
+                    pinia_robot_events.append({
+                        "event_id": e.get("event_id"),
+                        "robot_id": e.get("robot_id"),
+                        "type": e.get("type"),
+                        "time": e.get("time"),
+                        "message": e.get("message")
+                    })
+
+                parsed_data = {
+                    "source": source_name,
+                    "timestamp": header.get("timestamp") or int(time.time() * 1000),
+                    "msg_id": header.get("messageid") or str(uuid.uuid4()),
+                    "target_channel": "events", # 이벤트 채널로 분류
+                    "payload": {
+                        "type": "ROBOT_EVENT_UPDATE",
+                        "robot_events": pinia_robot_events
+                    }
+                }
+
+                print(f"[MessageParser] 로봇 이벤트 패킷 감지 및 파싱 완료: {len(pinia_robot_events)} 건, parsed_data: {parsed_data}")  # 디버깅용 로그
+
+                return parsed_data
+            
         except Exception as e:
             logger.error(f"[{source_name}] 파싱/라우팅 예외 발생: {e}")
             return None

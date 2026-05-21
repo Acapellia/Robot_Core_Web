@@ -29,7 +29,7 @@
         <ul class="event-list">
           <li 
             v-for="event in events" 
-            :key="event.id" 
+            :key="event.event_id" 
             :class="['event-item', event.type.toLowerCase()]"
           >
             <div class="timeline-dot"></div>

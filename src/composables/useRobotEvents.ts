@@ -10,7 +10,6 @@ export function useRobotEvents() {
     events,
     isLoading,
     error,
-    fetchEvents: store.fetchEvents,
     downloadLogCsv: store.downloadLogCsv,
     startMonitoring: store.startMonitoring,
     stopMonitoring: store.stopMonitoring
