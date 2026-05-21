@@ -25,16 +25,11 @@
       <div v-else class="stream-wrapper">
         <div class="timeline-line"></div>
 
-        <!-- 💡 핵심 포인트: 리스트 전체를 CSS flex-direction: column-reverse로 뒤집음 -->
         <TransitionGroup 
           tag="ul" 
-          name="stream" 
+          name="island-pure" 
           class="event-list reverse-layout"
         >
-          <!-- 
-            이제 데이터는 순방향(push)으로 쌓입니다. 기존 아이템들의 index는 고정되므로,
-            Vue는 새로 추가된 맨 뒤의 아이템에만 정확하게 진입 애니메이션을 부여합니다.
-          -->
           <li 
             v-for="event in virtualEvents" 
             :key="event.event_id" 
@@ -43,11 +38,13 @@
             <div class="timeline-dot"></div>
             
             <div class="event-card">
-              <div class="card-header">
-                <span class="event-type">{{ event.type }}</span>
-                <span class="event-time">{{ event.time }}</span>
+              <div class="card-content-wrapper">
+                <div class="card-header">
+                  <span class="event-type">{{ event.type }}</span>
+                  <span class="event-time">{{ event.time }}</span>
+                </div>
+                <p class="card-message">{{ event.message }}</p>
               </div>
-              <p class="card-message">{{ event.message }}</p>
             </div>
           </li>
         </TransitionGroup>
@@ -79,26 +76,23 @@ const startHydrationLoop = () => {
     const rawEvents = events.value;
     if (!rawEvents || rawEvents.length === 0) return;
 
-    // 1. 최초 로드 처리 (순방향 push 구조이므로 원본 배열 그대로 복사)
     if (virtualEvents.value.length === 0) {
       virtualEvents.value = [...rawEvents];
       currentRenderedIndex = rawEvents.length;
       return;
     }
 
-    // 2. 단일/복수 유입 상관없이 인덱스 기준 순차 펌핑
     if (rawEvents.length > currentRenderedIndex) {
       const nextEventToRender = rawEvents[currentRenderedIndex];
       
       if (nextEventToRender) {
-        // 💡 배열의 맨 뒤에 넣습니다. 기존 원소들의 순서가 보존되어 엉뚱한 아래 리스트가 출렁이지 않습니다.
         virtualEvents.value.push(nextEventToRender);
         currentRenderedIndex++; 
         
         await nextTick();
       }
     }
-  }, 60); // 부드러운 유입감을 위해 60ms 세팅
+  }, 60);
 };
 
 watch(events, (newVal) => {
@@ -125,10 +119,10 @@ onUnmounted(() => {
   height: 100%;
   padding: 24px 12px; 
   box-sizing: border-box;
-  font-family: 'Segoe UI', Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
   background-color: #ffffff;
   border-radius: 16px;
-  border: 1px solid rgba(13, 27, 34, 0.2);
+  border: 1px solid rgba(13, 27, 34, 0.12);
   display: flex;
   flex-direction: column;
 }
@@ -177,14 +171,13 @@ onUnmounted(() => {
   background-color: #e9edf7;
 }
 
-/* 💡 [핵심 스타일] 최신 데이터(배열 끝부분)가 무조건 시각적으로 맨 위로 오도록 레이아웃 반전 */
 .event-list.reverse-layout {
   list-style: none;
   padding: 0;
   margin: 0;
   display: flex;
-  flex-direction: column-reverse; /* 아래에 깔리는 원소가 시각적으로 위로 배치됨 */
-  gap: 20px;
+  flex-direction: column-reverse; 
+  gap: 12px;
 }
 
 .event-item {
@@ -197,7 +190,7 @@ onUnmounted(() => {
 .timeline-dot {
   position: absolute;
   left: -18px;
-  top: 14px;
+  top: 16px;
   width: 10px;
   height: 10px;
   border-radius: 50%;
@@ -209,9 +202,14 @@ onUnmounted(() => {
   flex: 1;
   width: 100%;
   background-color: var(--bg-color);
-  border-radius: 12px;
-  padding: 12px 16px;
+  border-radius: 16px;
+  padding: 12px 18px;
   box-sizing: border-box;
+  overflow: hidden;
+}
+
+.card-content-wrapper {
+  width: 100%;
 }
 
 .card-header {
@@ -266,18 +264,48 @@ onUnmounted(() => {
 .main-content::-webkit-scrollbar-track { background: transparent; }
 .main-content::-webkit-scrollbar-thumb { background: #e9edf7; border-radius: 4px; }
 
-/* 💡 레이아웃을 뒤집었기 때문에 새 데이터는 시각적 최상단(실제 코드상 맨 뒤)에서 자연스럽게 내려옵니다. */
-.stream-enter-from {
+
+/* ==========================================================================
+   🍏 [Pure Island] 오직 순수한 물리 탄성(Spring)만 남긴 UI 무브먼트
+   ========================================================================== */
+
+/* 1. 시작 진입점: 그림자나 하이라이트 효과 없이, 순수하게 쪼그라든 캡슐 상태 */
+.island-pure-enter-from {
   opacity: 0;
-  transform: translateY(-30px);
 }
-.stream-enter-active {
+
+.island-pure-enter-from .event-card {
+  transform-origin: 0% 20%; /* 왼쪽 도트 위치 기준 */
+  /* 가로는 0에 가깝게, 세로는 납작하게 수축 */
+  transform: scale(0.02, 0.1); 
+  border-radius: 100px;
+}
+
+.island-pure-enter-from .card-content-wrapper {
+  opacity: 0;
+}
+
+/* 2. 애니메이션 활성화: 애플 하드웨어 특유의 묵직하고 쫀득한 베지에 곡선 적용 */
+.island-pure-enter-active {
+  transition: opacity 0.1s ease-out;
+}
+
+/* 캡슐이 본래 카드로 쫘악 펼쳐지며 끝에 통~ 하고 튕기는 순수 형태 변형 */
+.island-pure-enter-active .event-card {
+  /* 💡 인위적인 keyframe 애니메이션 전면 삭제. 
+     순수하게 cubic-bezier 탄성값으로만 쫀득한 팽창감을 유도 */
   transition: 
-    opacity 0.25s ease-out, 
-    transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    transform 0.48s cubic-bezier(0.175, 0.885, 0.32, 1.25), 
+    border-radius 0.35s ease-out;
 }
-/* 기존 아이템들이 아래로 안정적으로 밀려날 때의 트랜지션 보장 */
-.stream-move {
-  transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+
+/* 형태가 다 잡히면 글자가 깔끔하게 안착 */
+.island-pure-enter-active .card-content-wrapper {
+  transition: opacity 0.2s ease-out 0.12s;
+}
+
+/* 3. 아래 리스트들이 관성적으로 부드럽게 밀려 내려가는 모션 */
+.island-pure-move {
+  transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1);
 }
 </style>
