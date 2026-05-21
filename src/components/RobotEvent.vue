@@ -51,7 +51,7 @@
 </template>
 
 <script setup lang="ts">
-import { useRobotEvents } from '../composables/VisRobotEvents';
+import { useRobotEvents } from '../composables/UseRobotEvents';
 
 const { events, isLoading, error, downloadLogCsv } = useRobotEvents();
 </script>

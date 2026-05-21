@@ -1,4 +1,4 @@
-// src/composables/VisRobotEvents.ts
+// src/composables/UseRobotEvents.ts
 import { storeToRefs } from 'pinia';
 import { useEventStore } from '../stores/eventStore';
 
