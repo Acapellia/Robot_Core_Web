@@ -34,20 +34,6 @@ export function useRobotEvents() {
         { id: 5, type: 'INFO', time: '14:25:00', message: 'Routine patrol mission "Full Scan" started.' },
         { id: 6, type: 'SYSTEM', time: '14:10:22', message: 'Docking successful. Charging initiated.' },
         { id: 7, type: 'SYSTEM', time: '14:20:22', message: 'Flame Event is detected.' },
-        { id: 8, type: 'INFO', time: '14:32:01', message: 'System check completed. All subsystems nominal.' },
-        { id: 9, type: 'ALERT', time: '14:31:48', message: 'Path L2-4 blocked by static obstacle.' },
-        { id: 10, type: 'SYSTEM', time: '14:30:12', message: 'Robot position synchronized with local map.' },
-        { id: 11, type: 'WARNING', time: '14:28:55', message: 'Unusual temperature spike in Section C (28°C).' },
-        { id: 12, type: 'INFO', time: '14:25:00', message: 'Routine patrol mission "Full Scan" started.' },
-        { id: 13, type: 'SYSTEM', time: '14:10:22', message: 'Docking successful. Charging initiated.' },
-        { id: 14, type: 'SYSTEM', time: '14:20:22', message: 'Flame Event is detected.' },
-        { id: 15, type: 'INFO', time: '14:32:01', message: 'System check completed. All subsystems nominal.' },
-        { id: 16, type: 'ALERT', time: '14:31:48', message: 'Path L2-4 blocked by static obstacle.' },
-        { id: 17, type: 'SYSTEM', time: '14:30:12', message: 'Robot position synchronized with local map.' },
-        { id: 18, type: 'WARNING', time: '14:28:55', message: 'Unusual temperature spike in Section C (28°C).' },
-        { id: 19, type: 'INFO', time: '14:25:00', message: 'Routine patrol mission "Full Scan" started.' },
-        { id: 20, type: 'SYSTEM', time: '14:10:22', message: 'Docking successful. Charging initiated.' },
-        { id: 21, type: 'SYSTEM', time: '14:20:22', message: 'Flame Event is detected.' }
       ];
       
       events.value = mockData;
