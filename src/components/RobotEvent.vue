@@ -19,6 +19,10 @@
         {{ error }}
       </div>
 
+      <div v-else-if="events.length === 0" class="empty-events">
+        발생한 이벤트가 없습니다.
+      </div>
+
       <div v-else class="stream-wrapper">
         <div class="timeline-line"></div>
 
@@ -182,6 +186,16 @@ const { events, isLoading, error, downloadLogCsv } = useRobotEvents();
   font-size: 14px;
 }
 .error-state { color: #ff5b5b; }
+
+/* 이벤트가 없을 때 중앙 메시지 */
+.empty-events {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #a3aed0;
+  font-size: 14px;
+}
 
 /* 💡 변경 포인트: 푸터 내부 버튼이 양옆에 약간의 균형 잡힌 여백만 갖도록 조정 */
 .footer {

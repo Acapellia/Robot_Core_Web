@@ -14,7 +14,7 @@
       </h3>
     </div>
 
-    <div class="body">
+    <div :class="['body', robots.length === 0 ? 'empty' : '']">
       <div v-if="robots.length === 0" class="empty-state">
         연결된 로봇이 없습니다.
       </div>
@@ -114,6 +114,13 @@ const { robots, selectedRobotId, selectRobot } = useRobotList();
   flex: 1;
   overflow-y: auto;
   width: 100%;
+}
+
+/* body가 비었을 때 중앙 정렬 처리 */
+.body.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .robot-list {
@@ -244,7 +251,7 @@ const { robots, selectedRobotId, selectRobot } = useRobotList();
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 120px;
+  height: 100%;
   color: #a3aed0;
   font-size: 14px;
 }

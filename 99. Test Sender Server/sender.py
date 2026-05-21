@@ -151,6 +151,17 @@ async def cli_loop(templates_path: str, host: str, port: int):
                     m = 0 if h == 12 else random.randint(0, 59)
                     state['uptime'] = f"{h}h {m:02d}m"
 
+        # robot_event 템플릿이면 이벤트의 시간과 ID를 현재 값으로 갱신
+        if tpl.get('id') == 'robot_event' or tpl.get('type') == 'robot_event' or tpl.get('title','').lower().find('robot event') != -1:
+            payload = copy.deepcopy(payload)
+            robot_events = payload.get('robot_events') or payload.get('robot_events', [])
+            if isinstance(robot_events, list):
+                for ev in robot_events:
+                    ev['event_id'] = random.randint(1, 9999)
+                    ev['time'] = time.strftime("%H:%M:%S", time.localtime())
+                    if 'type' not in ev or not ev.get('type'):
+                        ev['type'] = random.choice(['INFO', 'ALERT', 'WARNING', 'SYSTEM'])
+
         header = build_header(tpl)
         message = {"header": header, "payload": payload}
 

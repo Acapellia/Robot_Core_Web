@@ -4,19 +4,14 @@ import { ref } from 'vue';
 export type EventType = 'INFO' | 'ALERT' | 'SYSTEM' | 'WARNING';
 
 export interface RobotEvent {
-  id: number;
+  event_id: number;
+  robot_Id: string;
   type: EventType;
   time: string;
   message: string;
 }
 
 const INITIAL_EVENTS: RobotEvent[] = [
-  { id: 1, type: 'INFO', time: '09:32:01', message: 'System check completed. All subsystems nominal.' },
-  { id: 2, type: 'ALERT', time: '10:25:48', message: 'Path L2-4 blocked by static obstacle.' },
-  { id: 3, type: 'SYSTEM', time: '13:17:12', message: 'Robot position synchronized with local map.' },
-  { id: 4, type: 'WARNING', time: '14:28:55', message: 'Unusual temperature spike in Section C (28°C).' },
-  { id: 5, type: 'INFO', time: '16:45:10', message: 'Routine patrol mission "Full Scan" started.' },
-  { id: 6, type: 'ALERT', time: '18:00:00', message: 'Is time to go home!!' },
 ];
 
 export const useEventStore = defineStore('event', () => {
