@@ -9,7 +9,6 @@
         <div class="meta-left">
           <h2 class="robot-title">
             {{ robotInfo.name }}
-            <span class="version-lbl">{{ robotInfo.version }}</span>
           </h2>
           <p class="ip-lbl">IP: {{ robotInfo.ipAddress }}</p>
         </div>

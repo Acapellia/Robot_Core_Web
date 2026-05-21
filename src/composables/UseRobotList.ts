@@ -1,61 +1,45 @@
 // src/composables/UseRobotList.ts
-import { ref, onMounted, onUnmounted } from 'vue';
+import { storeToRefs } from 'pinia';
+import { useRobotStore } from '../stores/robotStore';
 
-export type RobotStatus = 'Patrolling' | 'Idle' | 'Offline';
-
-export interface RobotItem {
-  id: string;
-  name: string;
-  isMain: boolean;
-  status: RobotStatus;
-  imageUrl: string; // 💡 백엔드 API에서 받아올 로봇 이미지 URL 필드 추가
-}
-
+/**
+ * 로봇 목록 대시보드 제어를 담당하는 컴포저블 함수
+ */
 export function useRobotList() {
-  const robots = ref<RobotItem[]>([]);
-  const selectedRobotId = ref<string | null>(null);
-  const isLoading = ref<boolean>(false);
-  let pollingTimer: ReturnType<typeof setInterval> | null = null;
+  // 1. 전역 Pinia 창고를 불러옵니다.
+  const store = useRobotStore();
+  
+  // 2. Pinia 창고 안의 상태(Ref)를 안전하게 꺼내옵니다. (반응형 유지를 위해 storeToRefs 사용)
+  const { robots, selectedRobotId } = storeToRefs(store);
+  
+  // 3. Pinia 창고 안의 기능(액션)을 꺼내옵니다.
+  const { selectRobot } = store;
 
-  const fetchrobotData = async () => {
-    try {
-      // 백엔드 API 연동 시뮬레이션 (실제 서빙 시 로봇별 이미지 경로가 포함됩니다)
-      const mockData: RobotItem[] = [
-        { id: 'neo-01', name: 'NEO-01', isMain: true, status: 'Patrolling', imageUrl: '' },
-        { id: 'neo-02', name: 'NEO-02', isMain: false, status: 'Idle', imageUrl: '' },
-        { id: 'neo-03', name: 'NEO-03', isMain: false, status: 'Offline', imageUrl: '' }
-      ];
+  /**
+   * 💡 [현재 단계]: 백엔드가 없으므로 순수하게 Pinia 창고 데이터만 화면에 토스합니다.
+   * 
+   * 🛠️ [나중 단계]: FastAPI 웹소켓이 완성되면 여기에 아래 주석 친 코드를 합치면 끝납니다.
+   * 
+   * import { onMounted, onUnmounted } from 'vue';
+   * let socket: WebSocket | null = null;
+   * 
+   * onMounted(() => {
+   *   socket = new WebSocket('ws://localhost:8000/ws/robots');
+   *   socket.onmessage = (event) => {
+   *     const data = JSON.parse(event.data);
+   *     store.updateRobot(data); // 🚚 실시간 수신 데이터를 Pinia 창고로 배달!
+   *   };
+   * });
+   * 
+   * onUnmounted(() => {
+   *   if (socket) socket.close();
+   * });
+   */
 
-      robots.value = mockData;
-
-      if (!selectedRobotId.value && mockData.length > 0) {
-        selectedRobotId.value = mockData[0].id;
-      }
-    } catch (err) {
-      console.error('로봇 리스트 데이터를 가져오는 중 오류 발생:', err);
-    }
-  };
-
-  const selectRobot = (id: string) => {
-    selectedRobotId.value = id;
-  };
-
-  onMounted(() => {
-    isLoading.value = true;
-    fetchrobotData();
-    isLoading.value = false;
-
-    pollingTimer = setInterval(fetchrobotData, 5000);
-  });
-
-  onUnmounted(() => {
-    if (pollingTimer) clearInterval(pollingTimer);
-  });
-
+  // 4. 화면(RobotSelect.vue)에서 바인딩해서 쓸 알맹이들만 반환합니다.
   return {
     robots,
     selectedRobotId,
-    isLoading,
     selectRobot
   };
 }
