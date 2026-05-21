@@ -11,11 +11,12 @@ export interface RobotEvent {
 }
 
 const INITIAL_EVENTS: RobotEvent[] = [
-  { id: 1, type: 'INFO', time: '14:32:01', message: 'System check completed. All subsystems nominal.' },
-  { id: 2, type: 'ALERT', time: '14:31:48', message: 'Path L2-4 blocked by static obstacle.' },
-  { id: 3, type: 'SYSTEM', time: '14:30:12', message: 'Robot position synchronized with local map.' },
+  { id: 1, type: 'INFO', time: '09:32:01', message: 'System check completed. All subsystems nominal.' },
+  { id: 2, type: 'ALERT', time: '10:25:48', message: 'Path L2-4 blocked by static obstacle.' },
+  { id: 3, type: 'SYSTEM', time: '13:17:12', message: 'Robot position synchronized with local map.' },
   { id: 4, type: 'WARNING', time: '14:28:55', message: 'Unusual temperature spike in Section C (28°C).' },
-  { id: 5, type: 'INFO', time: '14:25:00', message: 'Routine patrol mission "Full Scan" started.' }
+  { id: 5, type: 'INFO', time: '16:45:10', message: 'Routine patrol mission "Full Scan" started.' },
+  { id: 6, type: 'ALERT', time: '18:00:00', message: 'Is time to go home!!' },
 ];
 
 export const useEventStore = defineStore('event', () => {
@@ -39,6 +40,16 @@ export const useEventStore = defineStore('event', () => {
     } finally {
       isLoading.value = false;
     }
+  }
+
+  // In dev, optionally simulate incoming events to demonstrate live update
+  if (import.meta.env.DEV) {
+    setInterval(() => {
+      const id = Date.now();
+      const types: EventType[] = ['INFO','ALERT','SYSTEM','WARNING'];
+      const t = types[Math.floor(Math.random()*types.length)];
+      events.value.push({ id, type: t, time: new Date().toLocaleTimeString(), message: `Simulated ${t} event ${id}` });
+    }, 15000);
   }
 
   function startMonitoring(intervalMs = 10000) {

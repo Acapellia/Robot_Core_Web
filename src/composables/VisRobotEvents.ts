@@ -4,14 +4,16 @@ import { useEventStore } from '../stores/eventStore';
 
 export function useRobotEvents() {
   const store = useEventStore();
-  const { events, isLoading, error } = storeToRefs ? storeToRefs(store) : store;
+  const { events, isLoading, error } = storeToRefs(store);
 
-  // Expose store actions directly
   return {
     events,
     isLoading,
     error,
     fetchEvents: store.fetchEvents,
-    downloadLogCsv: store.downloadLogCsv
+    downloadLogCsv: store.downloadLogCsv,
+    addEvent: store.addEvent,
+    startMonitoring: store.startMonitoring,
+    stopMonitoring: store.stopMonitoring
   };
 }
