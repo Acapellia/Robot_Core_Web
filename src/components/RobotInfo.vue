@@ -44,7 +44,7 @@
 </template>
 
 <script setup lang="ts">
-import { useRobotInfo } from '../composables/UseRobotInfo';
+import { useRobotInfo } from '../composables/useRobotInfo';
 
 const { robotInfo } = useRobotInfo();
 </script>

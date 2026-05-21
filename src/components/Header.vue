@@ -23,7 +23,7 @@
 
 <script setup lang="ts">
 import logo from '../assets/icons/Intellivix_logo.png';
-import { useHeader } from '../composables/UseHeader';
+import { useHeader } from '../composables/useHeader';
 
 const { currentTime } = useHeader();
 </script>

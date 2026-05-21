@@ -62,7 +62,7 @@
 </template>
 
 <script setup lang="ts">
-import { useRobotList } from '../composables/UseRobotList';
+import { useRobotList } from '../composables/useRobotList';
 
 const { robots, selectedRobotId, selectRobot } = useRobotList();
 </script>

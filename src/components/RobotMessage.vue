@@ -26,7 +26,7 @@
 </template>
 
 <script setup lang="ts">
-import { useLatestAlert } from '../composables/UseLatestMessage';
+import { useLatestAlert } from '../composables/useLatestMessage';
 
 const { latestAlert } = useLatestAlert();
 </script>
