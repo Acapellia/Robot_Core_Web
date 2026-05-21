@@ -15,7 +15,7 @@ export function useLatestAlert() {
   const latestAlert = computed<LatestAlert | null>(() => {
     const list = events.value;
     if (!list || list.length === 0) return null;
-    const last = list[0];
+    const last = list[list.length - 1];
     return { message: last.message, time: last.time, type: last.type } as LatestAlert;
   });
 

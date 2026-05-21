@@ -58,7 +58,7 @@ export const useEventStore = defineStore('event', () => {
   const updateEventList = (robotEvents: RobotEvent[]) => {
     // 대입 말고 추가가 되어야 함
     // events.value = robotEvents;
-    events.value = [...robotEvents, ...events.value].slice(0, 100);
+    events.value = [...events.value, ...robotEvents].slice(0, 100);
   };
 
   function startMonitoring() {
