@@ -10,6 +10,7 @@
     </div>
 
     <div class="main-content">
+      <!-- 💡 상태 메시지들은 부모 레이아웃의 마운트를 방해하지 않도록 절대 좌표 영역으로 분리 -->
       <div v-if="isLoading && virtualEvents.length === 0" class="loading-state">
         로그를 불러오는 중입니다...
       </div>
@@ -22,8 +23,9 @@
         발생한 이벤트가 없습니다.
       </div>
 
-      <div v-else class="stream-wrapper">
-        <div class="timeline-line"></div>
+      <!-- 💡 [핵심] 빈 화면일 때도 부모 래퍼는 무조건 상시 렌더링 상태를 유지하여 TransitionGroup의 첫 진입을 대기시킵니다. -->
+      <div class="stream-wrapper">
+        <div class="timeline-line" v-if="virtualEvents.length > 0"></div>
 
         <TransitionGroup 
           tag="ul" 
@@ -75,12 +77,6 @@ const startHydrationLoop = () => {
   intervalId = setInterval(async () => {
     const rawEvents = events.value;
     if (!rawEvents || rawEvents.length === 0) return;
-
-    if (virtualEvents.value.length === 0) {
-      virtualEvents.value = [...rawEvents];
-      currentRenderedIndex = rawEvents.length;
-      return;
-    }
 
     if (rawEvents.length > currentRenderedIndex) {
       const nextEventToRender = rawEvents[currentRenderedIndex];
@@ -154,12 +150,14 @@ onUnmounted(() => {
   margin-bottom: 20px;
   padding: 0 4px 0 0;
   width: 100%;
+  position: relative; /* 자식 상태창의 기준점 */
 }
 
 .stream-wrapper {
   position: relative;
   padding-left: 28px;
   padding-right: 15px;
+  min-height: 100%; /* 부모의 크기를 채워 트랜지션이 동작할 공간 확보 */
 }
 
 .timeline-line {
@@ -223,13 +221,17 @@ onUnmounted(() => {
 .event-time { font-size: 11px; color: #a3aed0; }
 .card-message { margin: 0; font-size: 13px; font-weight: 600; color: var(--text-color); line-height: 1.4; }
 
+/* 💡 부모 공간을 가리지 않게 absolute 처리하여 리스트 래퍼 마운트 유지 */
 .loading-state, .error-state, .empty-events {
-  height: 100%;
+  position: absolute;
+  inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #a3aed0;
   font-size: 14px;
+  pointer-events: none; /* 클릭 방해 금지 */
+  z-index: 2;
 }
 .error-state { color: #ff5b5b; }
 
@@ -269,14 +271,13 @@ onUnmounted(() => {
    🍏 [Pure Island] 오직 순수한 물리 탄성(Spring)만 남긴 UI 무브먼트
    ========================================================================== */
 
-/* 1. 시작 진입점: 그림자나 하이라이트 효과 없이, 순수하게 쪼그라든 캡슐 상태 */
+/* 1. 시작 진입점 */
 .island-pure-enter-from {
   opacity: 0;
 }
 
 .island-pure-enter-from .event-card {
-  transform-origin: 0% 20%; /* 왼쪽 도트 위치 기준 */
-  /* 가로는 0에 가깝게, 세로는 납작하게 수축 */
+  transform-origin: 0% 20%;
   transform: scale(0.02, 0.1); 
   border-radius: 100px;
 }
@@ -285,26 +286,22 @@ onUnmounted(() => {
   opacity: 0;
 }
 
-/* 2. 애니메이션 활성화: 애플 하드웨어 특유의 묵직하고 쫀득한 베지에 곡선 적용 */
+/* 2. 애니메이션 활성화 */
 .island-pure-enter-active {
   transition: opacity 0.1s ease-out;
 }
 
-/* 캡슐이 본래 카드로 쫘악 펼쳐지며 끝에 통~ 하고 튕기는 순수 형태 변형 */
 .island-pure-enter-active .event-card {
-  /* 💡 인위적인 keyframe 애니메이션 전면 삭제. 
-     순수하게 cubic-bezier 탄성값으로만 쫀득한 팽창감을 유도 */
   transition: 
     transform 0.48s cubic-bezier(0.175, 0.885, 0.32, 1.25), 
     border-radius 0.35s ease-out;
 }
 
-/* 형태가 다 잡히면 글자가 깔끔하게 안착 */
 .island-pure-enter-active .card-content-wrapper {
   transition: opacity 0.2s ease-out 0.12s;
 }
 
-/* 3. 아래 리스트들이 관성적으로 부드럽게 밀려 내려가는 모션 */
+/* 3. 리스트 이동 관성 모션 */
 .island-pure-move {
   transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1);
 }
