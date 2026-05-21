@@ -30,7 +30,7 @@
             <img 
               v-if="robot.imageUrl" 
               :src="robot.imageUrl" 
-              :alt="robot.telemetry?.name" 
+              :alt="robot.id" 
               class="robot-api-img"
             />
             <svg v-else class="default-robot-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -42,7 +42,7 @@
 
           <div class="robot-info">
             <div class="robot-name">
-              {{ robot.telemetry?.name }} <span v-if="robot.isMain" class="main-badge">(Main)</span>
+              {{ robot.id }} <span v-if="robot.isMain" class="main-badge">(Main)</span>
             </div>
             <div :class="['robot-status', (robot.telemetry?.status || '').toLowerCase()]">
               <span class="status-dot"></span>

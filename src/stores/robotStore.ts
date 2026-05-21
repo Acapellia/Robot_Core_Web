@@ -1,4 +1,4 @@
-// src/strores/robotStore.ts
+// src/stores/robotStore.ts
 
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
@@ -6,9 +6,6 @@ import { ref } from 'vue';
 export type RobotStatus = 'PATROLLING' | 'IDLE' | 'OFFLINE';
 
 export interface RobotTelemetry {
-    name: string;
-    version?: string;
-    ipAddress?: string;
     status: RobotStatus;
     battery?: number;
     currentMap?: string;
@@ -17,73 +14,110 @@ export interface RobotTelemetry {
 
 export interface RobotItem {
     id: string;
+    robot_ip: string;
+    robot_port: number;
     telemetry: RobotTelemetry;
     isMain: boolean;
     imageUrl: string; // 백엔드 API에서 받아올 로봇 이미지 URL 필드
 }
 
-// Mock data
-const INITIAL_MOCK_DATA: RobotItem[] = [
-    { id: 'neo-01', telemetry: { name: 'NEO-01', ipAddress: '172.16.15.27', status: 'PATROLLING', battery: 84, currentMap: 'Floor_L2_North', uptime: '12h 45m' }, isMain: true, imageUrl: '' },
-    { id: 'neo-02', telemetry: { name: 'NEO-02', ipAddress: '192.168.1.104', status: 'IDLE', battery: 66, currentMap: 'Floor_L1_South', uptime: '2h 12m' }, isMain: false, imageUrl: '' },
-    { id: 'neo-03', telemetry: { name: 'NEO-03', ipAddress: '195.6.14.1', status: 'OFFLINE', battery: 0, currentMap: '', uptime: '0h' }, isMain: false, imageUrl: '' }
-];
+// Mock data (실시간 소켓이 연결되므로 비워둡니다)
+const INITIAL_MOCK_DATA: RobotItem[] = [];
 
 export const useRobotStore = defineStore('robot', () => {
     const robots = ref<RobotItem[]>(INITIAL_MOCK_DATA);
-    const selectedRobotId = ref<string | null>(robots.value[0]?.id || null);
-    let timerId: ReturnType<typeof setInterval> | null = null;
+    const selectedRobotId = ref<string | null>(null);
+    
+    // 내부 웹소켓 세션 상태 객체
+    let socket: WebSocket | null = null;
 
     /**
-     * 🔌 추후 FastAPI 웹소켓으로부터 데이터를 실시간으로 전달받아 처리하는 액션(함수)
-     * - 웹소켓 컴포저블이 이 함수를 호출하여 데이터를 주입합니다.
-     * - 이 함수는 MOCK_ROBOTS 상수가 아니라 위의 'robots.value' 창고 데이터만 제어합니다.
+     * 🔌 [전역 가동] FastAPI 웹소켓으로부터 데이터를 실시간으로 전달받는 코어 액션
+     * - 시스템 진입점(App.vue 등)에서 최초 1회 실행해주면 백그라운드에서 계속 동작합니다.
      */
-   const updateRobot = (serverData: RobotItem) => {
-        // check existing
-        const existing = robots.value.find(r => r.id === serverData.id);
-        if (existing) {
-            existing.telemetry = { ...existing.telemetry, ...serverData.telemetry };
-            existing.imageUrl = serverData.imageUrl ?? existing.imageUrl;
-            existing.isMain = serverData.isMain;
-        } else {
-            robots.value.push(serverData);
+    const connectWebSocket = () => {
+        if (socket) return; // 중복 연결 방지
+
+        socket = new WebSocket('ws://localhost:8000/ws/robots/telemetry');
+
+        socket.onmessage = (event) => {
+            try {
+                const response = JSON.parse(event.data);
+                const payload = response.payload;
+
+                if (!payload) return;
+
+                // 1. 중계기 MessageParser가 가공한 전체 로봇 목록 패킷인 경우
+                if (payload.type === 'ROBOT_LIST_UPDATE') {
+                    updateRobotList(payload.robots);
+                } 
+            } catch (error) {
+                console.error('스토어 실시간 소켓 바인딩 실패:', error);
+            }
+        };
+
+        socket.onclose = () => {
+            console.warn('텔레메트리 웹소켓 연결이 끊겼습니다. 3초 후 재연결을 시도합니다.');
+            socket = null;
+            setTimeout(connectWebSocket, 3000); // 좀비 재연결
+        };
+
+        socket.onerror = (err) => {
+            console.error('웹소켓 에러 발생:', err);
+        };
+    };
+
+    /**
+     * 🚚 [목록 갱신] 중계기로부터 로봇 전체 목록 배열을 받아 창고를 통째로 동기화하는 액션
+     */
+    const updateRobotList = (incomingRobots: RobotItem[]) => {
+        incomingRobots.forEach((newRobot) => {
+            const existing = robots.value.find(r => r.id === newRobot.id);
+            if (existing) {
+                // 기존에 존재하면 네트워크 정보 최신화 (컨트롤 제어 목적)
+                existing.robot_ip = newRobot.robot_ip;
+                existing.robot_port = newRobot.robot_port;
+            } else {
+                // 새로운 로봇인 경우 기본 객체 밀어넣기
+                robots.value.push(newRobot);
+            }
+        });
+
+        // 현재 아무것도 선택되지 않은 첫 구동 상태라면 리스트의 첫 번째 로봇을 메인으로 세팅
+        if (!selectedRobotId.value && robots.value.length > 0) {
+            selectedRobotId.value = robots.value[0].id;
+            robots.value[0].isMain = true;
         }
     };
 
+
     /**
-     * 화면에서 로봇 아이템을 마우스로 클릭했을 때 호출 액션
+     * 🖱️ 화면에서 로봇 아이템을 마우스로 클릭했을 때 호출 액션
      */
     const selectRobot = (id: string) => {
         selectedRobotId.value = id;
-        // 선택된 로봇을 메인으로 설정하고, 다른 로봇들은 isMain=false로 한다.
         robots.value = robots.value.map(r => ({ ...r, isMain: r.id === id }));
     };
 
-    async function fetchRobots() {
-    }
-
-    function startMonitoring(intervalMs = 5000) {
-        if (timerId) return;
-        fetchRobots();
-        timerId = setInterval(fetchRobots, intervalMs);
+    // 기존의 폴링 모니터링 방식은 이제 필요치 않으므로 인터페이스 통일을 위해 더미 전환
+    function startMonitoring() {
+        connectWebSocket();
     }
 
     function stopMonitoring() {
-        if (timerId) {
-            clearInterval(timerId);
-            timerId = null;
+        if (socket) {
+            socket.close();
+            socket = null;
         }
     }
 
     return {
         robots,
         selectedRobotId,
-        updateRobot,
+        connectWebSocket,
+        updateRobotList,
         selectRobot,
-        fetchRobots,
-        startMonitoring,
+        startMonitoring, // 기존 컴포넌트 사이드 이펙트 방지용 유지
         stopMonitoring
     };
-
 });

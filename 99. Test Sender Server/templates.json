@@ -1,0 +1,72 @@
+[
+    {
+        "id": "handshake",
+        "title": "Handshake (client -> hub)",
+        "header": {
+            "version": "1.0",
+            "type": "handshake",
+            "sessionid": "0",
+            "protocol_source": "ROBOT",
+            "protocol_category": "REQUEST",
+            "priority": 10
+        },
+        "payload": {
+            "systemid": 100,
+            "sourcesystem": "robot"
+        }
+    },
+    {
+        "id": "request robot lists",
+        "title": "Request Robot Lists",
+        "header": {
+            "version": "1.0",
+            "type": "robot list",
+            "sessionid": "0",
+            "protocol_source": "HUB",
+            "protocol_category": "STATE",
+            "priority": 10
+        },
+        "payload": {
+            "robot_list" :  [
+                {
+                    "robot_id" : "NEO-01",
+                    "robot_ip" : "172.16.15.27",
+                    "port" : 7777
+                },
+                {
+                    "robot_id" : "NEO-02",
+                    "robot_ip" : "92.168.1.104",
+                    "port" : 7777
+                },
+                {
+                    "robot_id" : "NEO-03",
+                    "robot_ip" : "199.56.14.1",
+                    "port" : 7777
+                }
+            ]
+        }
+    },
+    {
+        "id": "robot_state",
+        "title": "Robot State",
+        "header": {
+            "version": "1.0",
+            "type": "robot_state",
+            "sessionid": "0",
+            "protocol_source": "ROBOT",
+            "protocol_category": "STATE",
+            "priority": 0
+        },
+        "payload": {
+            "RobotID": 1,
+            "RobotGUID": "robot-001",
+            "IsOnline": true,
+            "Battery": {
+                "Level": 85.5,
+                "IsCharging": false,
+                "EstimatedTimeRemaining": 7200
+            },
+            "Status": { "StateCode": 1 }
+        }
+    }
+]

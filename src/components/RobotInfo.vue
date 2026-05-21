@@ -8,9 +8,9 @@
       <div class="top-row">
         <div class="meta-left">
           <h2 class="robot-title">
-            {{ robotInfo.name }}
+            {{ robotInfo.id }}
           </h2>
-          <p class="ip-lbl">IP: {{ robotInfo.ipAddress }}</p>
+          <p class="ip-lbl">IP: {{ robotInfo.robot_ip }}</p>
         </div>
 
         <div :class="['status-badge', robotInfo.status.toLowerCase()]">

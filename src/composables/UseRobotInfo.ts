@@ -3,8 +3,19 @@ import { ref, onMounted, onUnmounted, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useRobotStore, RobotTelemetry } from '../stores/robotStore';
 
+// 로봇 정보 클래스 선언
+export interface RobotInfo {
+  id: string;
+  robot_ip: string;
+  robot_port: number;
+  status: string;
+  battery: number;
+  currentMap: string;
+  uptime: string;
+}
+
 export function useRobotInfo() {
-  const robotInfo = ref<RobotTelemetry | null>(null);
+  const robotInfo = ref<RobotInfo | null>(null);
   const isLoading = ref<boolean>(false);
   let metricsTimer: ReturnType<typeof setInterval> | null = null;
   const robotStore = useRobotStore();
@@ -13,20 +24,21 @@ export function useRobotInfo() {
   const fetchRobotInfo = async () => {
     try {
       // 기본(로컬) 상세값
-      const mockDetail: RobotTelemetry = {
-        name: 'NEO-01',
-        version: 'v2.4.0',
-        ipAddress: '192.168.1.104',
-        status: 'PATROLLING',
-        battery: 84,
-        currentMap: 'Floor_L2_North',
-        uptime: '12h 45m'
+      const mockDetail: RobotInfo = {
+        id: '',
+        robot_ip: '',
+        robot_port: 0,
+        status: 'OFFLINE',
+        battery: 0,
+        currentMap: '',
+        uptime: ''
       };
 
       const main = robots.value.find(r => r.isMain === true);
       if (main && main.telemetry) {
-        mockDetail.name = main.telemetry.name ?? mockDetail.name;
-        mockDetail.ipAddress = main.telemetry.ipAddress ?? mockDetail.ipAddress;
+        mockDetail.id = main.id ?? mockDetail.id;
+        mockDetail.robot_ip = main.robot_ip ?? mockDetail.robot_ip;
+        mockDetail.robot_port = main.robot_port ?? mockDetail.robot_port;
         mockDetail.status = main.telemetry.status ?? mockDetail.status;
         mockDetail.battery = main.telemetry.battery ?? mockDetail.battery;
         mockDetail.currentMap = main.telemetry.currentMap ?? mockDetail.currentMap;

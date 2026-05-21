@@ -1,0 +1,25 @@
+[
+  {
+    "type": "sender",
+    "ip": "127.0.0.1",
+    "port": 8080,
+    "scheme": "ws",
+    "path": "/",
+    "handshake": {
+      "header": {
+        "version": "1.0",
+        "type": "handshake",
+        "messageid": "",
+        "sessionid": "0",
+        "timestamp": 0,
+        "protocol_source": "robot",
+        "protocol_category": "request",
+        "priority": 10
+      },
+      "payload": {
+        "systemid": 2000,
+        "sourcesystem": "broadcast"
+      }
+    }
+  }
+]
