@@ -32,6 +32,7 @@ const INITIAL_MOCK_DATA: RobotItem[] = [
 export const useRobotStore = defineStore('robot', () => {
     const robots = ref<RobotItem[]>(INITIAL_MOCK_DATA);
     const selectedRobotId = ref<string | null>(robots.value[0]?.id || null);
+    let timerId: ReturnType<typeof setInterval> | null = null;
 
     /**
      * 🔌 추후 FastAPI 웹소켓으로부터 데이터를 실시간으로 전달받아 처리하는 액션(함수)
@@ -59,11 +60,30 @@ export const useRobotStore = defineStore('robot', () => {
         robots.value = robots.value.map(r => ({ ...r, isMain: r.id === id }));
     };
 
+    async function fetchRobots() {
+    }
+
+    function startMonitoring(intervalMs = 5000) {
+        if (timerId) return;
+        fetchRobots();
+        timerId = setInterval(fetchRobots, intervalMs);
+    }
+
+    function stopMonitoring() {
+        if (timerId) {
+            clearInterval(timerId);
+            timerId = null;
+        }
+    }
+
     return {
         robots,
         selectedRobotId,
         updateRobot,
-        selectRobot
+        selectRobot,
+        fetchRobots,
+        startMonitoring,
+        stopMonitoring
     };
 
 });

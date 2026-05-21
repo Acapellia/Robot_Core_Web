@@ -45,7 +45,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, computed } from 'vue'
+import { reactive, computed, markRaw } from 'vue'
 import RobotController from '../components/RobotController.vue'
 import RobotCamGrid from '../components/RobotCamGrid.vue'
 import RobotMessage from '../components/RobotMessage.vue'
@@ -78,9 +78,9 @@ const contents = reactive({
     enabled: true,
     ratio: 0.22,
     // 세로 3 영역: select / info / map
-    top: { component: RobotSelect, props: {} },
-    middle: { component: RobotInfo, props: {} },
-    bottom: { component: RobotMap, props: {} },
+    top: { component: markRaw(RobotSelect), props: {} },
+    middle: { component: markRaw(RobotInfo), props: {} },
+    bottom: { component: markRaw(RobotMap), props: {} },
     // 비율 (0~1)
     topRatio: 0.35,
     middleRatio: 0.15,
@@ -89,9 +89,9 @@ const contents = reactive({
   },
   center: {
     // top / bottom은 실제 컴포넌트(또는 문자열 이름)를 넣어 교체 가능
-    top: { component: RobotCamGrid, props: {} },
-    middle: { component: RobotMessage, props: {} },
-    bottom: { component: RobotController, props: {} },
+    top: { component: markRaw(RobotCamGrid), props: {} },
+    middle: { component: markRaw(RobotMessage), props: {} },
+    bottom: { component: markRaw(RobotController), props: {} },
     // 가운데를 분할하는 비율 (0~1)
     topRatio: 0.45,
     middleRatio: 0.04,
@@ -101,7 +101,7 @@ const contents = reactive({
   right: {
     enabled: true,
     ratio: 0.21,
-    component: RobotEvent,
+    component: markRaw(RobotEvent),
     props: {},
   },
 })

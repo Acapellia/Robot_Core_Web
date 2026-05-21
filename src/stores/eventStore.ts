@@ -26,31 +26,10 @@ export const useEventStore = defineStore('event', () => {
   let timerId: ReturnType<typeof setInterval> | null = null;
 
   async function fetchEvents() {
-    isLoading.value = true;
-    error.value = null;
-    try {
-      // simulate delay
-      await new Promise(r => setTimeout(r, 300));
-      // in real app we'd fetch from /api/robot/events
-      // keep existing initial data or replace
-      // events.value = (await api.get('/api/robot/events')).data
-    } catch (err) {
-      error.value = '이벤트 로그를 불러오는 중 오류가 발생했습니다.';
-      console.error(err);
-    } finally {
-      isLoading.value = false;
-    }
+
   }
 
-  // In dev, optionally simulate incoming events to demonstrate live update
-  if (import.meta.env.DEV) {
-    setInterval(() => {
-      const id = Date.now();
-      const types: EventType[] = ['INFO','ALERT','SYSTEM','WARNING'];
-      const t = types[Math.floor(Math.random()*types.length)];
-      events.value.push({ id, type: t, time: new Date().toLocaleTimeString(), message: `Simulated ${t} event ${id}` });
-    }, 15000);
-  }
+  // No dev simulation: events should come from backend or explicit actions
 
   function startMonitoring(intervalMs = 10000) {
     if (timerId) return;
