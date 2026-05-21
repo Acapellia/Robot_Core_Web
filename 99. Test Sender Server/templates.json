@@ -58,14 +58,29 @@
             "priority": 0
         },
         "payload": {
-            "RobotID": 1,
-            "RobotGUID": "robot-001",
-            "IsOnline": true,
-            "Battery": {
-                "Level": 85.5,
-                "IsCharging": false,
-                "EstimatedTimeRemaining": 7200
-            },
+            "robot_states" : [
+                {
+                    "robot_id" : "NEO-01",
+                    "status": "PATROLLING",
+                    "battery": 0,
+                    "current_map": "Floor_1",
+                    "uptime": "0h 00m"
+                },
+                {
+                    "robot_id" : "NEO-02",
+                    "status": "IDLE",
+                    "battery": 0,
+                    "current_map": "Floor_2",
+                    "uptime": "0h 00m"
+                },
+                {
+                    "robot_id" : "NEO-03",
+                    "status": "OFFLINE",
+                    "battery": 0,
+                    "current_map": "Floor_3",
+                    "uptime": "0h 00m"
+                }
+            ],
             "Status": { "StateCode": 1 }
         }
     }

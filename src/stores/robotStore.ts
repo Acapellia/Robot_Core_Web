@@ -51,6 +51,10 @@ export const useRobotStore = defineStore('robot', () => {
                 if (payload.type === 'ROBOT_LIST_UPDATE') {
                     updateRobotList(payload.robots);
                 } 
+                // 2. 개별 로봇 텔레메트리 업데이트 패킷인 경우
+                else if (payload.type === 'ROBOT_STATE_UPDATE') {
+                    UpdateRobotStates(payload.robot_states);
+                }
             } catch (error) {
                 console.error('스토어 실시간 소켓 바인딩 실패:', error);
             }
@@ -88,6 +92,15 @@ export const useRobotStore = defineStore('robot', () => {
             selectedRobotId.value = robots.value[0].id;
             robots.value[0].isMain = true;
         }
+    };
+
+    const UpdateRobotStates = (robotStates: RobotItem[]) => {
+        robotStates.forEach((updated) => {
+            const existing = robots.value.find(r => r.id === updated.id);
+            if (existing) {
+                existing.telemetry = updated.telemetry;
+            }
+        });
     };
 
 

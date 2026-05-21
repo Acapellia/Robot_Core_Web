@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import time
+import random
 import uuid
 from pathlib import Path
 from typing import Dict, List, Optional, Set
@@ -41,7 +42,7 @@ class MessageParser:
                         "robot_port": r.get("port"),
                         "telemetry": {
                             "status": "IDLE", # 초기 기본값 세팅 (나중에 텔레메트리로 갱신)
-                            "battery": 100,
+                            "battery": random.randint(0, 100), # 임시 랜덤 배터리 값 (실제 텔레메트리로 갱신 예정)
                             "currentMap": "Floor_1",
                             "uptime": "0h"
                         },
@@ -64,15 +65,33 @@ class MessageParser:
                 
                 return parsed_data
             
-            # 2. 일반 단일 로봇 상태/비상 패킷 처리 (기존 로직 유지)
-            is_emergency = payload.get("is_emergency") or "error" in str(payload).lower()
-            return {
-                "source": source_name,
-                "timestamp": header.get("timestamp") or int(time.time() * 1000),
-                "msg_id": header.get("messageid") or str(uuid.uuid4()),
-                "target_channel": "events" if is_emergency else "telemetry",
-                "payload": payload
-            }
+            elif "robot_states" in payload:
+                pinia_robot_states = []
+                for r in payload["robot_states"]:
+                    pinia_robot_states.append({
+                        "id": r.get("robot_id"),
+                        "telemetry": {
+                            "status": r.get("status", "UNKNOWN"),
+                            "battery": r.get("battery"),
+                            "currentMap": r.get("current_map"),
+                            "uptime": r.get("uptime"),
+                        }
+                    })
+
+                parsed_data = {
+                    "source": source_name,
+                    "timestamp": header.get("timestamp") or int(time.time() * 1000),
+                    "msg_id": header.get("messageid") or str(uuid.uuid4()),
+                    "target_channel": "telemetry",
+                    "payload": {
+                        "type": "ROBOT_STATE_UPDATE",
+                        "robot_states": pinia_robot_states
+                    }
+                }
+
+                print(f"[MessageParser] 로봇 상태 패킷 감지 및 파싱 완료: {len(pinia_robot_states)} 대, parsed_data: {parsed_data}")  # 디버깅용 로그
+
+                return parsed_data
             
         except Exception as e:
             logger.error(f"[{source_name}] 파싱/라우팅 예외 발생: {e}")

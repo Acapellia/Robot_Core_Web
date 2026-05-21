@@ -7,6 +7,8 @@ import time
 import argparse
 import os
 from typing import Dict, Any
+import random
+import copy
 
 CONNECTED = set()
 
@@ -133,8 +135,21 @@ async def cli_loop(templates_path: str, host: str, port: int):
             continue
 
         print(f"선택된 템플릿: {tpl.get('title')}")
-        # 템플릿의 header와 payload를 그대로 사용합니다 (편집 기능 제거)
+        # 템플릿의 header와 payload를 가져옵니다
         payload = tpl.get('payload', {})
+
+        # robot_state 템플릿이면 각 로봇의 battery와 uptime을 랜덤으로 재설정
+        if tpl.get('id') == 'robot_state' or tpl.get('type') == 'robot_state' or tpl.get('title','').lower().find('robot state') != -1:
+            payload = copy.deepcopy(payload)
+            robot_states = payload.get('robot_states') or payload.get('robot_states', [])
+            if isinstance(robot_states, list):
+                for state in robot_states:
+                    # battery: 0~100
+                    state['battery'] = random.randint(0, 100)
+                    # uptime: 0h 00m ~ 12h 00m (if 12h then 00m)
+                    h = random.randint(0, 12)
+                    m = 0 if h == 12 else random.randint(0, 59)
+                    state['uptime'] = f"{h}h {m:02d}m"
 
         header = build_header(tpl)
         message = {"header": header, "payload": payload}
