@@ -1,6 +1,6 @@
 <template>
   <div class="messages-container">
-    <div v-if="latestAlert" class="alert-bar">
+    <div v-if="latestAlert" :class="['alert-bar', (latestAlert.type || '').toLowerCase()]">
       
       <div class="icon-wrapper">
         <svg class="alert-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -66,6 +66,38 @@ const { latestAlert } = useLatestAlert();
   border-radius: 8px;       /* 컨테이너와 동일하게 조금 더 둥글게 */
   overflow: hidden;
 }
+
+/* 타입별 스타일 오버라이드 */
+.alert-bar.info {
+  background-color: #f7f6fc;
+  border-color: #bfaee3;
+  color: #2b3674;
+}
+.alert-bar.alert {
+  background-color: #fff5f5;
+  border-color: #ff5b5b;
+  color: #a30000;
+}
+.alert-bar.system {
+  background-color: #f0f7ff;
+  border-color: #4a90e2;
+  color: #2b3674;
+}
+.alert-bar.warning {
+  background-color: #fff9f3;
+  border-color: #ff9f43;
+  color: #a35200;
+}
+
+.alert-bar.info .alert-icon { color: #bfaee3; }
+.alert-bar.alert .alert-icon { color: #ff5b5b; }
+.alert-bar.system .alert-icon { color: #4a90e2; }
+.alert-bar.warning .alert-icon { color: #ff9f43; }
+
+.alert-bar.info .message-content, .alert-bar.info .time-stamp { color: #2b3674; }
+.alert-bar.alert .message-content, .alert-bar.alert .time-stamp { color: #a30000; }
+.alert-bar.system .message-content, .alert-bar.system .time-stamp { color: #2b3674; }
+.alert-bar.warning .message-content, .alert-bar.warning .time-stamp { color: #a35200; }
 
 /* 동그라미 백그라운드 구역 */
 .icon-wrapper {

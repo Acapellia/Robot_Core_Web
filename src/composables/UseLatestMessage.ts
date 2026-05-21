@@ -1,10 +1,11 @@
 import { computed } from 'vue';
 import { storeToRefs } from 'pinia';
-import { useEventStore } from '../stores/eventStore';
+import { useEventStore, EventType } from '../stores/eventStore';
 
 export interface LatestAlert {
   message: string;
   time: string;
+  type: EventType;
 }
 
 export function useLatestAlert() {
@@ -15,7 +16,7 @@ export function useLatestAlert() {
     const list = events.value;
     if (!list || list.length === 0) return null;
     const last = list[list.length - 1];
-    return { message: last.message, time: last.time };
+    return { message: last.message, time: last.time, type: last.type } as LatestAlert;
   });
 
   return { latestAlert };
