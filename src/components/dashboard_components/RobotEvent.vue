@@ -63,7 +63,7 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick, onUnmounted } from 'vue';
-import { useRobotEvents } from '../composables/useRobotEvents';
+import { useRobotEvents } from '../../composables/useRobotEvents';
 
 const { events, isLoading, error, downloadLogCsv } = useRobotEvents();
 
@@ -118,7 +118,7 @@ onUnmounted(() => {
   font-family: -apple-system, BlinkMacSystemFont, sans-serif;
   background-color: #ffffff;
   border-radius: 16px;
-  border: 1px solid rgba(13, 27, 34, 0.12);
+  border: 1px solid rgba(13, 27, 34, 0.2);
   display: flex;
   flex-direction: column;
 }

@@ -70,7 +70,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { useRobotMap } from '../composables/useRobotMap';
+import { useRobotMap } from '../../composables/useRobotMap';
 
 const { mapInfo, zoomLevel, zoomIn, zoomOut } = useRobotMap();
 

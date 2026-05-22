@@ -1,6 +1,7 @@
 <template>
   <div class="dashboard" :style="dashboardStyle">
     <div class="full-width-flex">
+      <!-- LEFT -->
       <div
         class="panel left"
         v-if="contents.left.enabled"
@@ -8,37 +9,67 @@
       >
         <div class="left-container" :style="leftContainerStyle">
           <div class="left-top" :style="leftTopStyle">
-            <component :is="contents.left.top.component" v-bind="contents.left.top.props" />
+            <component
+              :is="contents.left.top.component"
+              v-bind="contents.left.top.props"
+            />
           </div>
+
           <div class="left-middle" :style="leftMiddleStyle">
-            <component :is="contents.left.middle.component" v-bind="contents.left.middle.props" />
+            <component
+              :is="contents.left.middle.component"
+              v-bind="contents.left.middle.props"
+            />
           </div>
+
           <div class="left-bottom" :style="leftBottomStyle">
-            <component :is="contents.left.bottom.component" v-bind="contents.left.bottom.props" />
+            <component
+              :is="contents.left.bottom.component"
+              v-bind="contents.left.bottom.props"
+            />
           </div>
         </div>
       </div>
 
-      <div class="panel center" :style="{ flex: `${contents.center.ratio} 1 0%` }">
+      <!-- CENTER -->
+      <div
+        class="panel center"
+        :style="{ flex: `${contents.center.ratio} 1 0%` }"
+      >
         <div class="center-top" :style="centerTopStyle">
-          <component :is="contents.center.top.component" v-bind="contents.center.top.props" />
+          <component
+            :is="contents.center.top.component"
+            v-bind="contents.center.top.props"
+          />
         </div>
+
         <div class="center-middle" :style="centerMiddleStyle">
           <div class="card">
-            <component :is="contents.center.middle.component" v-bind="contents.center.middle.props" />
+            <component
+              :is="contents.center.middle.component"
+              v-bind="contents.center.middle.props"
+            />
           </div>
         </div>
+
         <div class="center-bottom" :style="centerBottomStyle">
-          <component :is="contents.center.bottom.component" v-bind="contents.center.bottom.props" />
+          <component
+            :is="contents.center.bottom.component"
+            v-bind="contents.center.bottom.props"
+          />
         </div>
       </div>
 
+      <!-- RIGHT -->
       <div
         class="panel right"
         v-if="contents.right.enabled"
         :style="{ flex: `${contents.right.ratio} 1 0%` }"
       >
-        <component :is="contents.right.component" v-bind="contents.right.props" />
+        <component
+          :is="contents.right.component"
+          v-bind="contents.right.props"
+        />
       </div>
     </div>
   </div>
@@ -46,13 +77,18 @@
 
 <script setup lang="ts">
 import { reactive, computed, markRaw } from 'vue'
-import RobotController from '../components/RobotController.vue'
-import RobotCamGrid from '../components/RobotCamGrid.vue'
-import RobotMessage from '../components/RobotMessage.vue'
-import RobotInfo from '../components/RobotInfo.vue'
-import RobotEvent from '../components/RobotEvent.vue'
-import RobotSelect from '../components/RobotSelect.vue'
-import RobotMap from '../components/RobotMap.vue'
+import type { CSSProperties } from 'vue'
+
+// 대쉬보드 좌측 컴포넌트
+import RobotSelect from '../components/dashboard_components/RobotSelect.vue'
+import RobotInfo from '../components/dashboard_components/RobotInfo.vue'
+import RobotMap from '../components/dashboard_components/RobotMap.vue'
+// 대쉬보드 중앙 컴포넌트
+import RobotCamGrid from '../components/dashboard_components/RobotCamGrid.vue'
+import RobotMessage from '../components/dashboard_components/RobotMessage.vue'
+import RobotController from '../components/dashboard_components/RobotController.vue'
+// 대쉬보드 우측 컴포넌트
+import RobotEvent from '../components/dashboard_components/RobotEvent.vue'
 
 // 레이아웃 변수: Dashboard에서 제어 (top-grid gaps, center gap)
 const layoutVars = reactive({
@@ -114,7 +150,7 @@ const leftTopStyle = computed(() => ({ flex: `${contents.left.topRatio} 1 0%`, m
 const leftMiddleStyle = computed(() => ({ flex: `${contents.left.middleRatio} 1 0%`, minHeight: '0' }))
 const leftBottomStyle = computed(() => ({ flex: `${1 - contents.left.topRatio - contents.left.middleRatio} 1 0%`, minHeight: '0' }))
 
-const leftContainerStyle = computed(() => ({ display: 'flex', flexDirection: 'column', gap: contents.left.gap, minHeight: '0' }))
+const leftContainerStyle = computed<CSSProperties>(() => ({ display: 'flex', flexDirection: 'column', gap: contents.left.gap, minHeight: '0' }))
 </script>
 
 <style scoped>

@@ -26,7 +26,7 @@
 </template>
 
 <script setup lang="ts">
-import { useLatestAlert } from '../composables/useLatestMessage';
+import { useLatestAlert } from '../../composables/useLatestMessage';
 
 const { latestAlert } = useLatestAlert();
 </script>
@@ -152,7 +152,6 @@ const { latestAlert } = useLatestAlert();
   border-radius: 8px;
   border: 1px solid #b99cff;
   background-color: #f4f7fe;
-  border: none;
   color: #a3aed0;
   font-size: 14px;
   font-weight: 500;
