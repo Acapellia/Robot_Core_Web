@@ -5,32 +5,39 @@
         <span class="sparkle-icon">✦</span>
         CAMERA MANAGEMENT
       </h3>
-      <span class="linked-info">Linked to: <span class="highlight">Observ_Alpha</span></span>
+      <!-- 💡 변경: selectedCameraName(선택된 카메라 이름)이 실시간으로 보이도록 수정 -->
+      <span class="linked-info">
+        Linked to: <span class="highlight">{{ selectedCameraName || 'None' }}</span>
+      </span>
     </div>
 
     <div class="body-zone">
       <div class="form-container">
         <div class="form-grid">
-          <div class="form-group">
+          <div class="form-group name-group">
             <label>CAMERA NAME</label>
             <input type="text" v-model="newCamera.name" placeholder="Enter name..." />
           </div>
           <div class="form-group">
-            <label>IP ADDRESS</label>
-            <input type="text" v-model="newCamera.ip" placeholder="Enter IP address..." />
+            <label>CAMERA IP</label>
+            <input type="text" v-model="newCamera.ip" placeholder="Enter CAMERA IP..." />
           </div>
           <div class="form-group">
-            <label>ID</label>
-            <input type="text" v-model="newCamera.id" placeholder="Enter ID..." />
+            <label>CAMERA PORT</label>
+            <input type="text" v-model="newCamera.port" placeholder="Enter CAMERA PORT..." />
           </div>
           <div class="form-group">
-            <label>PASSWORD</label>
-            <input type="password" v-model="newCamera.password" placeholder="••••" />
+            <label>CAMERA ID</label>
+            <input type="text" v-model="newCamera.id" placeholder="Enter CAMERA ID..." />
+          </div>
+          <div class="form-group">
+            <label>CAMERA PASSWORD</label>
+            <input type="password" v-model="newCamera.pw" placeholder="Enter CAMERA PASSWORD..." />
           </div>
         </div>
 
         <button class="add-btn" @click="addCamera">
-          <span class="plus">+</span> Add Camera
+          <span class="plus">+</span> Add CAMERA
         </button>
       </div>
 
@@ -39,14 +46,19 @@
         
         <div class="camera-list">
           <div 
-            v-for="(camera, index) in cameras" 
-            :key="index" 
-            class="camera-item"
-            :class="{ 'first-item': index === 0 }"
+            v-for="camera in cameras" 
+            :key="camera.ip" 
+            :class="['camera-item', { active: selectedCameraId === camera.ip }]"
+            @click="selectCamera(camera.ip)"
           >
+            <!-- 💡 변경: 윗줄에 카메라 이름, 아랫줄에 IP와 PORT 배치 -->
             <div class="camera-info">
               <div class="camera-name">{{ camera.name }}</div>
-              <div class="camera-ip">{{ camera.ip }}</div>
+              <div class="camera-meta">
+                <span class="camera-ip">{{ camera.ip }}</span>
+                <span class="divider">:</span>
+                <span class="camera-port">{{ camera.port }}</span>
+              </div>
             </div>
             <div class="status">
               <span class="status-dot"></span> Active
@@ -59,46 +71,69 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 
 interface Camera {
   name: string;
   ip: string;
+  port: string;
   id: string;
-  password?: string;
+  pw: string;
 }
 
 const newCamera = ref<Camera>({
   name: '',
   ip: '',
+  port: '',
   id: '',
-  password: ''
+  pw: '',
 });
 
 const cameras = ref<Camera[]>([]);
+const selectedCameraId = ref<string | null>('');
+
+// 💡 추가: 현재 선택된 카메라 ID(IP)를 기반으로 카메라 이름을 실시간으로 찾아 반환하는 computed 속성
+const selectedCameraName = computed(() => {
+  const found = cameras.value.find(c => c.ip === selectedCameraId.value);
+  return found ? found.name : 'None';
+});
 
 const addCamera = () => {
-  if (!newCamera.value.name.trim() || !newCamera.value.ip.trim()) {
-    alert('Camera Name과 IP Address를 입력해주세요.');
+  if (!newCamera.value.name.trim() || !newCamera.value.ip.trim() || !newCamera.value.port.trim()) {
+    alert('카메라 연결에 필요한 정보를 모두 입력해주세요.');
     return;
   }
+  
+  if (cameras.value.some(c => c.ip === newCamera.value.ip)) {
+    alert('이미 등록된 CAMERA IP입니다.');
+    return;
+  }
+
   cameras.value.push({ ...newCamera.value });
-  newCamera.value = { name: '', ip: '', id: '', password: '' };
+  
+  if (cameras.value.length === 1) {
+    selectedCameraId.value = newCamera.value.ip;
+  }
+
+  newCamera.value = { name: '', ip: '', port: '', id: '', pw: '' };
+};
+
+const selectCamera = (id: string) => {
+  selectedCameraId.value = id;
 };
 </script>
 
 <style scoped>
-/* 메인 카드 스타일: 초기에는 부모가 할당한 균등 비율(33%)을 꽉 채우되, 콘텐츠 가려짐 없이 자연스레 연동 확장 */
+/* 메인 카드 스타일 */
 .camera-management {
   width: 100%;
   height: 100%;            
   background-color: #ffffff;
-  padding: 20px;
+  padding: 24px;
   border-radius: 16px;
-  border: 1px solid #e2dbf7;
+  border: 1px solid rgba(13, 27, 34, 0.2);
   box-sizing: border-box;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  
+  font-family: 'Segoe UI', Roboto, sans-serif;
   display: flex;
   flex-direction: column;  
 }
@@ -108,7 +143,7 @@ const addCamera = () => {
   display: flex;
   justify-content: space-between; 
   align-items: center;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
   width: 100%;
 }
 
@@ -125,7 +160,7 @@ const addCamera = () => {
 }
 
 .sparkle-icon {
-  color: #b05be6;
+  color: #1b2559;
   font-size: 16px;
 }
 
@@ -137,7 +172,7 @@ const addCamera = () => {
 }
 
 .linked-info .highlight {
-  color: #b05be6;
+  color: #1b2559;
   font-weight: 700;
 }
 
@@ -158,12 +193,16 @@ const addCamera = () => {
   box-sizing: border-box;
 }
 
-/* 2x2 그리드 레이아웃 */
+/* 그리드 레이아웃 */
 .form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
   margin-bottom: 14px;
+}
+
+.name-group {
+  grid-column: span 2;
 }
 
 .form-group {
@@ -193,7 +232,6 @@ const addCamera = () => {
 }
 
 .form-group input:focus {
-  /* border-color: #b05be6; */
   border-color: #707eae;
 }
 
@@ -240,35 +278,68 @@ const addCamera = () => {
 .camera-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  overflow: visible;        
+  gap: 12px;
+  overflow: visible;  
+  width: 100%;
+  max-width: 550px;   
+  margin: 0 auto;     
 }
 
-/* 개별 카메라 아이템 */
+/* 개별 카메라 아이템 기본 상태 */
 .camera-item {
   background: #ffffff;
+  border: 1px solid #e9edf7;
   border-radius: 14px;
-  padding: 12px 16px;
+  padding: 14px 20px;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  width: 100%;        
+  box-sizing: border-box; 
 }
 
-.camera-item.first-item {
-  border-left: 4px solid #a155cf;
-  border-top-left-radius: 4px;
-  border-bottom-left-radius: 4px;
+.camera-item:hover {
+  background-color: #f8faff;
+  border-color: #d1d9e8;
+}
+
+/* 선택 효과 */
+.camera-item.active {
+  background-color: #f3eef9;
+  border-color: #bfaee3;
+}
+
+/* 💡 추가/변경: 내부 리스트 레이아웃 스타일링 */
+.camera-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .camera-name {
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 700;
-  color: #1b2559;
+  color: #2b3674;
 }
 
-.camera-ip {
-  font-size: 11px;
+/* 선택 시 카메라 이름 텍스트 색상 강조 */
+.camera-item.active .camera-name {
+  color: #1a3ba5;
+}
+
+.camera-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
   color: #a3aed0;
+  font-weight: 500;
+}
+
+.divider {
+  color: #cbd5e1;
 }
 
 /* 상태 표시 */
