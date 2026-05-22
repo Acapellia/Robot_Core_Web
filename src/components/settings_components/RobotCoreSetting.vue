@@ -55,42 +55,30 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
+import { storeToRefs } from 'pinia';
+import { useHubStore } from '../../stores/hubStore';
 
-interface Hub {
-  ip: string;
-  port: string;
-}
+const hubStore = useHubStore();
+const { hubs, selectedHubId, wsConnected, errorMsg } = storeToRefs(hubStore);
+const { connectHub, selectHub } = hubStore;
 
-const newHub = ref<Hub>({
-  ip: '',
-  port: '',
-});
-
-const hubs = ref<Hub[]>([]);
-const selectedHubId = ref<string | null>('');
+const newHub = ref({ ip: '', port: '' });
 
 const addHub = () => {
   if (!newHub.value.ip.trim() || !newHub.value.port.trim()) {
     alert('HUB IP와 PORT를 입력해주세요.');
     return;
   }
-  
   if (hubs.value.some(h => h.ip === newHub.value.ip)) {
     alert('이미 등록된 HUB IP입니다.');
     return;
   }
-
-  hubs.value.push({ ...newHub.value });
-  
-  if (hubs.value.length === 1) {
-    selectedHubId.value = newHub.value.ip;
+  if (!wsConnected.value) {
+    alert('브로드캐스트 매니저와의 연결이 끊어졌습니다. 새로고침 해주세요.');
+    return;
   }
-
+  connectHub(newHub.value.ip, newHub.value.port);
   newHub.value = { ip: '', port: '' };
-};
-
-const selectHub = (id: string) => {
-  selectedHubId.value = id;
 };
 </script>
 
