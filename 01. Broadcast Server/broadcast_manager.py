@@ -366,6 +366,28 @@ async def events_endpoint(websocket: WebSocket):
 @app.websocket("/ws/control")
 async def control_endpoint(websocket: WebSocket):
     await manager.control_broker.connect(websocket)
+    # 연결된 시점에 현재 관리 중인 허브 목록을 클라이언트에 전송하여
+    # 프론트엔드가 새로고침 후에도 기존 허브를 복원할 수 있도록 지원
+    try:
+        current_hubs = []
+        for u in manager.upstreams:
+            hub = getattr(u, 'hub_info', None)
+            # 연결이 실제로 수립된 업스트림만 포함
+            ws_obj = getattr(u, '_ws', None)
+            if hub and ws_obj is not None:
+                current_hubs.append(hub)
+
+        if current_hubs:
+            init_msg = {
+                'source': 'broadcast_manager',
+                'payload': {
+                    'type': 'CURRENT_HUBS',
+                    'hubs': current_hubs
+                }
+            }
+            await websocket.send_text(json.dumps(init_msg, ensure_ascii=False))
+    except Exception as e:
+        logger.warning(f"Control 초기 허브 목록 전송 실패: {e}")
     try:
         while True:
             msg = await websocket.receive_text()

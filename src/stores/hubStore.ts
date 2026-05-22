@@ -71,6 +71,21 @@ export const useHubStore = defineStore('hub', () => {
             }
           }
         }
+        // 서버가 현재 등록된 허브 목록을 초기 전송해 올 경우 처리
+        else if (msg.payload && msg.payload.type === 'CURRENT_HUBS') {
+          const list = msg.payload.hubs || [];
+          if (Array.isArray(list)) {
+            list.forEach((hub: any) => {
+              if (hub.ip && hub.port && !hubs.value.some(h => h.ip === hub.ip && h.port === hub.port)) {
+                hubs.value.push({ ip: hub.ip, port: hub.port });
+              }
+            });
+
+            if (!selectedHubId.value && hubs.value.length > 0) {
+              selectedHubId.value = hubs.value[0].ip;
+            }
+          }
+        }
       } catch (e) {
         console.debug('[hubStore] 메시지 파싱 실패', e);
       }
