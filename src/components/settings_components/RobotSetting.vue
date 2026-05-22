@@ -1,52 +1,56 @@
 <template>
-  <div class="camera-management card">
+  <div class="robot-management card">
     <div class="header-zone">
       <h3 class="title">
         <span class="sparkle-icon">✦</span>
         ROBOT MANAGEMENT
       </h3>
-      <span class="linked-info">Linked to: <span class="highlight">Observ_Alpha</span></span>
+      <!-- 💡 변경: selectedRobotName(선택된 로봇 이름)이 실시간으로 보이도록 수정 -->
+      <span class="linked-info">
+        Linked to: <span class="highlight">{{ selectedRobotName || 'None' }}</span>
+      </span>
     </div>
 
     <div class="body-zone">
       <div class="form-container">
         <div class="form-grid">
-          <div class="form-group">
-            <label>CAMERA NAME</label>
-            <input type="text" v-model="newCamera.name" placeholder="Enter name..." />
+          <div class="form-group name-group">
+            <label>ROBOT NAME</label>
+            <input type="text" v-model="newRobot.name" placeholder="Enter name..." />
           </div>
           <div class="form-group">
-            <label>IP ADDRESS</label>
-            <input type="text" v-model="newCamera.ip" placeholder="Enter IP address..." />
+            <label>ROBOT IP</label>
+            <input type="text" v-model="newRobot.ip" placeholder="Enter ROBOT IP..." />
           </div>
           <div class="form-group">
-            <label>ID</label>
-            <input type="text" v-model="newCamera.id" placeholder="Enter ID..." />
-          </div>
-          <div class="form-group">
-            <label>PASSWORD</label>
-            <input type="password" v-model="newCamera.password" placeholder="••••" />
+            <label>ROBOT PORT</label>
+            <input type="text" v-model="newRobot.port" placeholder="Enter ROBOT PORT..." />
           </div>
         </div>
 
-        <button class="add-btn" @click="addCamera">
-          <span class="plus">+</span> Add Camera
+        <button class="add-btn" @click="addRobot">
+          <span class="plus">+</span> Add ROBOT
         </button>
       </div>
 
-      <div v-if="cameras.length > 0" class="linked-section">
-        <h4 class="section-title">LINKED CAMERAS ({{ cameras.length }})</h4>
+      <div v-if="robots.length > 0" class="linked-section">
+        <h4 class="section-title">LINKED ROBOTS ({{ robots.length }})</h4>
         
-        <div class="camera-list">
+        <div class="robot-list">
           <div 
-            v-for="(camera, index) in cameras" 
-            :key="index" 
-            class="camera-item"
-            :class="{ 'first-item': index === 0 }"
+            v-for="robot in robots" 
+            :key="robot.ip" 
+            :class="['robot-item', { active: selectedRobotId === robot.ip }]"
+            @click="selectRobot(robot.ip)"
           >
-            <div class="camera-info">
-              <div class="camera-name">{{ camera.name }}</div>
-              <div class="camera-ip">{{ camera.ip }}</div>
+            <!-- 💡 변경: 윗줄에 로봇 이름, 아랫줄에 IP와 PORT 배치 -->
+            <div class="robot-info">
+              <div class="robot-name">{{ robot.name }}</div>
+              <div class="robot-meta">
+                <span class="robot-ip">{{ robot.ip }}</span>
+                <span class="divider">:</span>
+                <span class="robot-port">{{ robot.port }}</span>
+              </div>
             </div>
             <div class="status">
               <span class="status-dot"></span> Active
@@ -59,46 +63,65 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 
-interface Camera {
+interface Robot {
   name: string;
   ip: string;
-  id: string;
-  password?: string;
+  port: string;
 }
 
-const newCamera = ref<Camera>({
+const newRobot = ref<Robot>({
   name: '',
   ip: '',
-  id: '',
-  password: ''
+  port: '',
 });
 
-const cameras = ref<Camera[]>([]);
+const robots = ref<Robot[]>([]);
+const selectedRobotId = ref<string | null>('');
 
-const addCamera = () => {
-  if (!newCamera.value.name.trim() || !newCamera.value.ip.trim()) {
-    alert('Camera Name과 IP Address를 입력해주세요.');
+// 💡 추가: 현재 선택된 로봇 ID(IP)를 기반으로 로봇 이름을 실시간으로 찾아 반환하는 computed 속성
+const selectedRobotName = computed(() => {
+  const found = robots.value.find(r => r.ip === selectedRobotId.value);
+  return found ? found.name : 'None';
+});
+
+const addRobot = () => {
+  if (!newRobot.value.name.trim() || !newRobot.value.ip.trim() || !newRobot.value.port.trim()) {
+    alert('로봇 연결에 필요한 정보를 모두 입력해주세요.');
     return;
   }
-  cameras.value.push({ ...newCamera.value });
-  newCamera.value = { name: '', ip: '', id: '', password: '' };
+  
+  if (robots.value.some(r => r.ip === newRobot.value.ip)) {
+    alert('이미 등록된 ROBOT IP입니다.');
+    return;
+  }
+
+  robots.value.push({ ...newRobot.value });
+  
+  if (robots.value.length === 1) {
+    selectedRobotId.value = newRobot.value.ip;
+  }
+
+  newRobot.value = { name: '', ip: '', port: '' };
+};
+
+const selectRobot = (id: string) => {
+  selectedRobotId.value = id;
 };
 </script>
 
 <style scoped>
-/* 메인 카드 스타일: 초기에는 부모가 할당한 균등 비율(33%)을 꽉 채우되, 콘텐츠 가려짐 없이 자연스레 연동 확장 */
-.camera-management {
+/* 메인 카드 스타일 */
+.robot-management {
   width: 100%;
   height: 100%;            
   background-color: #ffffff;
-  padding: 20px;
+  padding: 24px;
   border-radius: 16px;
-  border: 1px solid #e2dbf7;
+  border: 1px solid rgba(13, 27, 34, 0.2);
   box-sizing: border-box;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  
+  font-family: 'Segoe UI', Roboto, sans-serif;
   display: flex;
   flex-direction: column;  
 }
@@ -108,7 +131,7 @@ const addCamera = () => {
   display: flex;
   justify-content: space-between; 
   align-items: center;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
   width: 100%;
 }
 
@@ -125,7 +148,7 @@ const addCamera = () => {
 }
 
 .sparkle-icon {
-  color: #b05be6;
+  color: #1b2559;
   font-size: 16px;
 }
 
@@ -137,7 +160,7 @@ const addCamera = () => {
 }
 
 .linked-info .highlight {
-  color: #b05be6;
+  color: #1b2559;
   font-weight: 700;
 }
 
@@ -158,12 +181,16 @@ const addCamera = () => {
   box-sizing: border-box;
 }
 
-/* 2x2 그리드 레이아웃 */
+/* 그리드 레이아웃 */
 .form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
   margin-bottom: 14px;
+}
+
+.name-group {
+  grid-column: span 2;
 }
 
 .form-group {
@@ -193,7 +220,6 @@ const addCamera = () => {
 }
 
 .form-group input:focus {
-  /* border-color: #b05be6; */
   border-color: #707eae;
 }
 
@@ -221,7 +247,7 @@ const addCamera = () => {
   color: #1a3ba5;
 }
 
-/* 연결된 카메라 리스트 섹션 */
+/* 연결된 로봇 리스트 섹션 */
 .linked-section {
   width: 100%;
   display: flex;
@@ -237,38 +263,71 @@ const addCamera = () => {
 }
 
 /* 내부 스크롤바 완전 제거 및 유연 확장 허용 */
-.camera-list {
+.robot-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  overflow: visible;        
+  gap: 12px;
+  overflow: visible;  
+  width: 100%;
+  max-width: 550px;   
+  margin: 0 auto;     
 }
 
-/* 개별 카메라 아이템 */
-.camera-item {
+/* 개별 로봇 아이템 기본 상태 */
+.robot-item {
   background: #ffffff;
+  border: 1px solid #e9edf7;
   border-radius: 14px;
-  padding: 12px 16px;
+  padding: 14px 20px;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  width: 100%;        
+  box-sizing: border-box; 
 }
 
-.camera-item.first-item {
-  border-left: 4px solid #a155cf;
-  border-top-left-radius: 4px;
-  border-bottom-left-radius: 4px;
+.robot-item:hover {
+  background-color: #f8faff;
+  border-color: #d1d9e8;
 }
 
-.camera-name {
-  font-size: 13px;
+/* 선택 효과 */
+.robot-item.active {
+  background-color: #f3eef9;
+  border-color: #bfaee3;
+}
+
+/* 💡 추가/변경: 내부 리스트 레이아웃 스타일링 */
+.robot-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.robot-name {
+  font-size: 15px;
   font-weight: 700;
-  color: #1b2559;
+  color: #2b3674;
 }
 
-.camera-ip {
-  font-size: 11px;
+/* 선택 시 로봇 이름 텍스트 색상 강조 */
+.robot-item.active .robot-name {
+  color: #1a3ba5;
+}
+
+.robot-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
   color: #a3aed0;
+  font-weight: 500;
+}
+
+.divider {
+  color: #cbd5e1;
 }
 
 /* 상태 표시 */
