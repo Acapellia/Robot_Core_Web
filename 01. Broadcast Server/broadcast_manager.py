@@ -25,85 +25,11 @@ from src.MessageParser.message_parser import MessageParser
 
 
 # =====================================================================
-# [PART 2] 웹소켓 연결 및 수신 태스크 (Upstream Manager)
+# [PART 2] Upstream connection classes (externalized)
 # =====================================================================
-class UpstreamConnection:
-    """오직 개별 웹소켓의 연결 유지와 원시 메시지 수신(Ingest)만 담당"""
-
-    def __init__(self, uri: str, name: str, handshake: Optional[dict] = None, inbound_queue: Optional[asyncio.Queue] = None, hub_info: Optional[dict] = None, manager_ref = None):
-        self.uri = uri
-        self.name = name
-        self.handshake = handshake
-        self.inbound_queue = inbound_queue  # 중앙에서 주입받는 큐
-        self.hub_info = hub_info
-        self.manager_ref = manager_ref
-        self._running = False
-        self._ws = None
-        self.retry_interval = 5
-        self.max_retries: Optional[int] = 10
-
-    async def connect_loop(self):
-        self._running = True
-        attempt = 0
-        while self._running:
-            try:
-                logger.info(f"[{self.name}] 로봇 연결 시도 ➡️ {self.uri}")
-                async with websockets.connect(self.uri) as ws:
-                    self._ws = ws
-                    logger.info(f"[{self.name}] 로봇 연결 성공 ✅")
-                    
-                    if self.handshake:
-                        await self._send_handshake()
-
-                    if self.hub_info and self.manager_ref:
-                        if self not in self.manager_ref.upstreams:
-                            self.manager_ref.upstreams.append(self)
-                        
-                        success_msg = {
-                            'source': 'broadcast_manager',
-                            'payload': {
-                                'type': 'HUB_CONNECTED',
-                                'hub': self.hub_info
-                            }
-                        }
-                        # 내부 제어 채널로 알림
-                        await self.manager_ref.control_broker.broadcast(success_msg)
-
-                    attempt = 0
-                    # [수정] 수신된 원시 메시지를 처리하지 않고 즉시 큐(Queue)로 던짐
-                    async for raw_msg in ws:
-                        if self.inbound_queue:
-                            await self.inbound_queue.put((self.name, raw_msg))
-                            
-            except (websockets.ConnectionClosed, OSError) as e:
-                logger.warning(f"[{self.name}] 로봇 연결 끊김 혹은 실패: {e}")
-                attempt += 1
-            except Exception as e:
-                logger.error(f"[{self.name}] 업스트림 예외 에러: {e}")
-                attempt += 1
-                
-            if not self._running:
-                break
-
-            if self.max_retries is not None and attempt >= self.max_retries:
-                logger.info(f"[{self.name}] 최대 재시도 {self.max_retries}회에 도달하여 중단합니다.")
-                break
-
-            await asyncio.sleep(self.retry_interval)
-
-    async def _send_handshake(self):
-        try:
-            h = json.loads(json.dumps(self.handshake))
-            hdr = h.setdefault('header', {})
-            hdr.setdefault('messageid', str(uuid.uuid4()))
-            hdr.setdefault('timestamp', int(time.time() * 1000))
-            await self._ws.send(json.dumps(h, ensure_ascii=False))
-            logger.info(f"[{self.name}] 핸드셰이크 송신 완료")
-        except Exception as e:
-            logger.error(f"[{self.name}] 핸드셰이크 송신 실패: {e}")
-
-    def stop(self):
-        self._running = False
+from src.UpstreamManager.base import BaseConnection
+from src.UpstreamManager.pure_ws import PureWebSocketConnection
+from src.UpstreamManager.http_auth_ws import HttpAuthWebSocketConnection
 
 
 # =====================================================================
@@ -150,7 +76,7 @@ class BroadcastManager:
     def __init__(self, config_path: str):
         self.config_path = config_path
         self.upstream_tasks: List[asyncio.Task] = []
-        self.upstreams: List[UpstreamConnection] = []
+        self.upstreams: List[BaseConnection] = []
         
         # 1. 채널 브로커 세분화
         self.telemetry_broker = DownstreamChannelBroker(channel_name="Telemetry")
@@ -330,26 +256,64 @@ async def control_endpoint(websocket: WebSocket):
             if data.get('type') == 'connect-hub':
                 ip = data.get('ip')
                 port = data.get('port')
-                
+
                 if not ip or not port:
                     continue
 
-                if any(u.uri == f"ws://{ip}:{port}/" for u in manager.upstreams):
+                name = f"hub_{ip}_{port}"
+                if any(getattr(u, 'name', None) == name for u in manager.upstreams):
                     continue
 
                 logger.info(f"새로운 허브 동적 추가 요청 접수 -> {ip}:{port}")
 
-                # [수정] 수신된 원시 데이터를 쌓아둘 'manager.raw_message_queue'를 인자로 주입합니다.
-                conn = UpstreamConnection(
-                    uri=f"ws://{ip}:{port}/",
-                    name=f"hub_{ip}_{port}",
-                    handshake=data.get('handshake'),
-                    inbound_queue=manager.raw_message_queue,
-                    hub_info={'ip': ip, 'port': port},
-                    manager_ref=manager
-                )
-                
-                task = asyncio.create_task(conn.connect_loop())
+                async def _on_connect(conn_obj):
+                    # attach hub_info for management and notify control channel
+                    conn_obj.hub_info = {'ip': ip, 'port': port, 'uri': f"ws://{ip}:{port}/"}
+                    if conn_obj not in manager.upstreams:
+                        manager.upstreams.append(conn_obj)
+
+                    success_msg = {
+                        'source': 'broadcast_manager',
+                        'payload': {
+                            'type': 'HUB_CONNECTED',
+                            'hub': conn_obj.hub_info
+                        }
+                    }
+                    await manager.control_broker.broadcast(success_msg)
+
+                # 선택: HTTP 인증이 필요한 경우 vs 순수 WS
+                if data.get('auth_url') or data.get('login_payload'):
+                    auth_url = data.get('auth_url')
+                    login_payload = data.get('login_payload', {})
+                    ws_template = data.get('ws_uri_template', f"ws://{ip}:{port}/")
+
+                    def ws_factory(token, template=ws_template):
+                        return template.replace("{token}", token) if "{token}" in template else template
+
+                    conn = HttpAuthWebSocketConnection(
+                        auth_url=auth_url,
+                        ws_uri_factory=ws_factory,
+                        login_payload=login_payload,
+                        name=name,
+                        inbound_queue=manager.raw_message_queue,
+                        outbound_queue=None,
+                        retry_interval=5,
+                        max_retries=10,
+                        on_connect=_on_connect
+                    )
+                else:
+                    conn = PureWebSocketConnection(
+                        ws_uri=f"ws://{ip}:{port}/",
+                        handshake_payload=data.get('handshake'),
+                        name=name,
+                        inbound_queue=manager.raw_message_queue,
+                        outbound_queue=None,
+                        retry_interval=5,
+                        max_retries=10,
+                        on_connect=_on_connect
+                    )
+
+                task = asyncio.create_task(conn.run_loop())
                 manager.upstream_tasks.append(task)
                 
     except WebSocketDisconnect:

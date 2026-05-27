@@ -17,6 +17,13 @@
               class="child-component"
             />
           </div>
+          <div class="va-setting" :style="vaSettingStyle">
+            <component
+              :is="contents.left.va_setting.component"
+              v-bind="contents.left.va_setting.props"
+              class="child-component"
+            />
+          </div>
           <div class="camera-setting" :style="cameraSettingStyle">
             <component
               :is="contents.left.camera_setting.component"
@@ -55,6 +62,7 @@ import type { CSSProperties } from 'vue'
 // 대쉬보드 좌측 컴포넌트
 import RobotCoreSetting from '../components/settings_components/RobotCoreSetting.vue'
 import RobotSetting from '../components/settings_components/RobotSetting.vue'
+import VAEngineSetting from '../components/settings_components/VAEngineSetting.vue'
 import CameraSetting from '../components/settings_components/CameraSetting.vue'
 // 대쉬보드 우측 컴포넌트
 import RobotPatrolSetting from '../components/settings_components/RobotPatrolSetting.vue'
@@ -66,9 +74,11 @@ const contents = reactive({
     ratio: 0.25,
     robot_core_setting: { component: markRaw(RobotCoreSetting), props: {} },
     robot_setting: { component: markRaw(RobotSetting), props: {} },
+    va_setting: { component: markRaw(VAEngineSetting), props: {} },
     camera_setting: { component: markRaw(CameraSetting), props: {} },
-    topRatio: 0.33,
-    middleRatio: 0.33,
+    firstRatio: 0.25,
+    secondRatio: 0.25,
+    thirdRatio: 0.25,
     gap: '15px',
   },
   right: {
@@ -83,18 +93,19 @@ const contents = reactive({
 
 // ★ 핵심 보정: 감싸는 수직 박스에 display: flex를 명시해 주어야 
 // 내부에 바인딩되는 실제 컴포넌트 카드들이 찌그러지지 않고 부모 높이를 100% 꽉 채울 수 있습니다.
-const robotCoreSettingStyle = computed<CSSProperties>(() => ({ flex: `${contents.left.topRatio} 1 0%`,   minHeight: '0',}))
+const robotCoreSettingStyle = computed<CSSProperties>(() => ({ flex: `${contents.left.firstRatio} 1 0%`,   minHeight: '0',}))
 
-const robotSettingStyle = computed<CSSProperties>(() => ({ flex: `${contents.left.middleRatio} 1 0%`,  minHeight: '0',}))
+const robotSettingStyle = computed<CSSProperties>(() => ({ flex: `${contents.left.secondRatio} 1 0%`,  minHeight: '0',}))
 
-const cameraSettingStyle = computed<CSSProperties>(() => ({ flex: `${1 - contents.left.topRatio - contents.left.middleRatio} 1 0%`,  minHeight: '0',}))
+const vaSettingStyle = computed<CSSProperties>(() => ({ flex: `${contents.left.thirdRatio} 1 0%`,  minHeight: '0',}))
+
+const cameraSettingStyle = computed<CSSProperties>(() => ({ flex: `${1 - contents.left.firstRatio - contents.left.secondRatio - contents.left.thirdRatio} 1 0%`,  minHeight: '0',}))
 
 const robotPatrolSettingStyle = computed<CSSProperties>(() => ({   flex: `${contents.right.middleRatio} 1 0%`,   minHeight: '0',}))
 
 const robotEventSettingStyle = computed<CSSProperties>(() => ({ flex: `${1 - contents.right.middleRatio} 1 0%`,   minHeight: '0',}))
 
 const leftContainerStyle = computed<CSSProperties>(() => ({ display: 'flex', flexDirection: 'column', gap: contents.left.gap, minHeight: '0' }))
-
 
 const rightContainerStyle = computed<CSSProperties>(() => ({ display: 'flex', flexDirection: 'column', gap: contents.right.gap, minHeight: '0' }))
 

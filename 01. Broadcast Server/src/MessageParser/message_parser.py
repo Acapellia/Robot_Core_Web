@@ -82,7 +82,7 @@ class MessageParser:
             # 1. payload에 존재하는 key를 기반으로 등록된 매핑 정보 찾기
             matched_key = None
             for key in MessageParser.PARSER_REGISTRY:
-                if key in payload:
+                if key in header:
                     matched_key = key
                     break
 
