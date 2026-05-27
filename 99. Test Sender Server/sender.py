@@ -173,7 +173,7 @@ async def cli_loop(templates_path: str, host: str, port: int):
 async def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--host', default='0.0.0.0')
-    parser.add_argument('--port', type=int, default=8080)
+    parser.add_argument('--port', type=int, default=8070)
     parser.add_argument('--templates', default=os.path.join(os.path.dirname(__file__), 'templates.json'))
     args = parser.parse_args()
 

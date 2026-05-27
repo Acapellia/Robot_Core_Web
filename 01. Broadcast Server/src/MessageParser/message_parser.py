@@ -3,6 +3,7 @@ import time
 import random
 import uuid
 import logging
+from datetime import datetime
 from typing import Optional
 
 logger = logging.getLogger("MessageParser")
@@ -15,7 +16,7 @@ class MessageParser:
     
     # --- 각 패킷 유형별 전용 서브 파서 (Static Methods) ---
     @staticmethod
-    def _parse_robot_list(payload: dict) -> dict:
+    def _parse_robot_list(header: dict, payload: dict) -> dict:
         return {
             "type": "ROBOT_LIST_UPDATE",
             "robots": [
@@ -24,12 +25,12 @@ class MessageParser:
                     "robot_ip": r.get("robot_ip"),
                     "robot_port": r.get("port"),
                 }
-                for r in payload["robot_list"]
+                for r in payload.get("robot_list", [])
             ]
         }
 
     @staticmethod
-    def _parse_robot_states(payload: dict) -> dict:
+    def _parse_robot_states(header: dict, payload: dict) -> dict:
         return {
             "type": "ROBOT_STATE_UPDATE",
             "robot_states": [
@@ -42,12 +43,12 @@ class MessageParser:
                         "uptime": r.get("uptime"),
                     }
                 }
-                for r in payload["robot_states"]
+                for r in payload.get("robot_states", [])
             ]
         }
 
     @staticmethod
-    def _parse_robot_events(payload: dict) -> dict:
+    def _parse_robot_events(header: dict, payload: dict) -> dict:
         return {
             "type": "ROBOT_EVENT_UPDATE",
             "robot_events": [
@@ -58,7 +59,28 @@ class MessageParser:
                     "time": e.get("time"),
                     "message": e.get("message")
                 }
-                for e in payload["robot_events"]
+                for e in payload.get("robot_events", [])
+            ]
+        }
+
+    @staticmethod
+    def _parse_va_meta(header: dict, payload: dict) -> dict:
+        event_status = "UNKNOWN"
+        if payload.get("event_status") == 1:
+            event_status = "DETECTED"
+        elif payload.get("event_status") == 4:
+            event_status = "FINISHED"
+
+        return {
+            "type": "ROBOT_EVENT_UPDATE",
+            "robot_events": [
+                {
+                    "event_id": f"{payload.get("uid")}_{payload.get("type")}_{payload.get("event_status")}_{random.randint(100000, 999999)}",  # vaMeta는 고유 이벤트 ID가 없으므로 임의 생성),
+                    "robot_id": "NEO-01",
+                    "type": "SYSTEM",
+                    "time": datetime.fromtimestamp(header.get("timestamp") / 1000).strftime("%H:%M:%S"),
+                    "message": f"({event_status}) {payload.get('vlm_description')}"
+                }
             ]
         }
 
@@ -68,6 +90,8 @@ class MessageParser:
         "robot_list": {"channel": "telemetry", "parser": _parse_robot_list.__func__},
         "robot_states": {"channel": "telemetry", "parser": _parse_robot_states.__func__},
         "robot_events": {"channel": "events", "parser": _parse_robot_events.__func__},
+        "event_detected": {"channel": "events", "parser": _parse_va_meta.__func__},
+        "event_finished": {"channel": "events", "parser": _parse_va_meta.__func__},
     }
 
     @staticmethod
@@ -81,13 +105,14 @@ class MessageParser:
 
             # 1. payload에 존재하는 key를 기반으로 등록된 매핑 정보 찾기
             matched_key = None
+            print(header.get("type", ""))
             for key in MessageParser.PARSER_REGISTRY:
-                if key in header:
+                if key in header.get("type", ""):
                     matched_key = key
                     break
 
             if not matched_key:
-                logger.warning(f"[{source_name}] 지원하지 않거나 비어있는 패킷 형태입니다. payload keys: {list(payload.keys())}")
+                logger.warning(f"[{source_name}] 지원하지 않거나 비어있는 패킷 형태입니다. ")
                 return None
 
             registry_info = MessageParser.PARSER_REGISTRY[matched_key]
@@ -100,9 +125,9 @@ class MessageParser:
                 "target_channel": registry_info["channel"]
             }
 
-            # 3. 매핑된 전용 파서 함수를 호출하여 payload 데이터 파싱
+            # 3. 매핑된 전용 파서 함수를 호출하여 header와 payload를 함께 전달
             parser_func = registry_info["parser"]
-            parsed_message["payload"] = parser_func(payload)
+            parsed_message["payload"] = parser_func(header, payload)
 
             return parsed_message
             

@@ -91,6 +91,8 @@ class BroadcastManager:
 
         # 백그라운드 전용 일꾼(Worker)들을 담을 리스트
         self.worker_tasks: List[asyncio.Task] = []
+        # VA tokens mapping kept only on server-side: {(ip,port): token}
+        self.va_tokens: Dict[str, str] = {}
 
     def load_config(self) -> list:
         p = Path(self.config_path)
@@ -297,6 +299,7 @@ async def control_endpoint(websocket: WebSocket):
                         name=name,
                         inbound_queue=manager.raw_message_queue,
                         outbound_queue=None,
+                        subprotocols=["va-metadata"],
                         retry_interval=5,
                         max_retries=10,
                         on_connect=_on_connect
@@ -312,6 +315,69 @@ async def control_endpoint(websocket: WebSocket):
                         max_retries=10,
                         on_connect=_on_connect
                     )
+
+                task = asyncio.create_task(conn.run_loop())
+                manager.upstream_tasks.append(task)
+
+            # VA 엔진 연결 요청 처리
+            if data.get('type') == 'connect-va':
+                ip = data.get('ip')
+                port = data.get('port')
+                auth = data.get('auth', {}) or {}
+
+                if not ip or not port:
+                    continue
+
+                name = f"va_{ip}_{port}"
+                if any(getattr(u, 'name', None) == name for u in manager.upstreams):
+                    continue
+
+                logger.info(f"새로운 VA 엔진 동적 추가 요청 접수 -> {ip}:{port}")
+
+                async def _on_connect(conn_obj):
+                    conn_obj.hub_info = {'ip': ip, 'port': port, 'uri': f"ws://{ip}:{port}/"}
+                    if conn_obj not in manager.upstreams:
+                        manager.upstreams.append(conn_obj)
+
+                    success_msg = {
+                        'source': 'broadcast_manager',
+                        'payload': {
+                            'type': 'VA_CONNECTED',
+                            'va': conn_obj.hub_info
+                        }
+                    }
+                    await manager.control_broker.broadcast(success_msg)
+
+                # auth_url 및 login_payload 기본값 구성
+                auth_url = data.get('auth_url') or f"http://{ip}:{port}/users/login"
+                login_payload = data.get('login_payload') or {'id': auth.get('id'), 'pw': auth.get('pw')}
+                # 기본 템플릿: api-key 파라미터와 채널(hubMeta 포함)을 요청하도록 구성
+                ws_template = data.get('ws_uri_template') or f"ws://{ip}:{port}/?api-key={{token}}&ch=0,1,2,3&hubMeta"
+
+                def ws_factory(token, template=ws_template):
+                    from urllib.parse import quote_plus
+                    safe = quote_plus(str(token))
+                    return template.replace("{token}", safe) if "{token}" in template else template
+
+                async def on_auth_token(token, conn_obj=None):
+                    # 서버에서 토큰을 저장하고 로깅만 수행 — 클라이언트(vaStore)에는 전파하지 않음
+                    key = f"{ip}:{port}"
+                    manager.va_tokens[key] = token
+                    logger.info(f"[VA TOKEN] {key} -> {token}")
+
+                conn = HttpAuthWebSocketConnection(
+                    auth_url=auth_url,
+                    ws_uri_factory=ws_factory,
+                    login_payload=login_payload,
+                    name=name,
+                    inbound_queue=manager.raw_message_queue,
+                    outbound_queue=None,
+                    subprotocols=["va-metadata"],
+                    retry_interval=5,
+                    max_retries=10,
+                    on_connect=_on_connect,
+                    on_auth_token=on_auth_token
+                )
 
                 task = asyncio.create_task(conn.run_loop())
                 manager.upstream_tasks.append(task)

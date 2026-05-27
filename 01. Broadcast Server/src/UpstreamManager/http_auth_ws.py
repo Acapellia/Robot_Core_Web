@@ -1,5 +1,6 @@
 import json
 import logging
+import asyncio
 import aiohttp
 import websockets
 from .base import BaseConnection
@@ -16,6 +17,7 @@ class HttpAuthWebSocketConnection(BaseConnection):
         login_payload: dict,
         auth_header_factory: Optional[Callable[[str], dict]] = None,
         subprotocols: Optional[List[str]] = None,
+        on_auth_token: Optional[Callable[[str, object], None]] = None,
         **kwargs
     ):
         super().__init__(**kwargs)
@@ -25,6 +27,9 @@ class HttpAuthWebSocketConnection(BaseConnection):
         self.auth_header_factory = auth_header_factory
         # 원하는 WebSocket 서브프로토콜 리스트 (예: ["va-metadata"])을 저장
         self.subprotocols = subprotocols
+        # Optional callback invoked when auth token is obtained.
+        # Signature: on_auth_token(token: str, conn_obj: HttpAuthWebSocketConnection)
+        self.on_auth_token = on_auth_token
 
     async def _do_login(self) -> str:
         """HTTP 로그인 수행 후 인증 토큰을 반환합니다.
@@ -67,6 +72,14 @@ class HttpAuthWebSocketConnection(BaseConnection):
                 self.auth_token = token
                 logger.info(f"[{self.name}] (LOGIN PHASE) 인증 성공, 토큰 수신 완료")
 
+                # Notify manager or caller about received token (if callback provided)
+                if self.on_auth_token:
+                    try:
+                        maybe = self.on_auth_token(self.auth_token, self)
+                        if asyncio.iscoroutine(maybe):
+                            await maybe
+                    except Exception:
+                        logger.exception("on_auth_token callback error")
         return token
 
     async def _establish_websocket(self) -> websockets.WebSocketClientProtocol:

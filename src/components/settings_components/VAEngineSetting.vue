@@ -66,53 +66,44 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref } from 'vue';
+import { storeToRefs } from 'pinia';
+import { useVAStore } from '../../stores/vaStore';
 
-interface VAEngine {
-  ip: string;
-  port: string;
-  id: string;
-  pw: string;
-}
+const vaStore = useVAStore();
+const { vaEngines, selectedVAEngineIP, wsConnected, errorMsg } = storeToRefs(vaStore);
+const { connectVA, selectVA } = vaStore;
 
-const newVAEngine = ref<VAEngine>({
-  ip: '',
-  port: '',
-  id: '',
-  pw: '',
-});
-
-const vaEngines = ref<VAEngine[]>([]);
-const selectedVAEngineIP = ref<string | null>('');
-
-// 💡 추가: 현재 선택된 VA 엔진 IP를 기반으로 VA 엔진 이름을 실시간으로 찾아 반환하는 computed 속성
-const selectedVAEngineName = computed(() => {
-  const found = vaEngines.value.find(c => c.ip === selectedVAEngineIP.value);
-  return found ? found.ip : 'None';
-});
+const newVAEngine = ref({ ip: '', port: '', id: '', pw: '' });
 
 const addVAEngine = () => {
   if (!newVAEngine.value.ip.trim() || !newVAEngine.value.port.trim() || !newVAEngine.value.id.trim() || !newVAEngine.value.pw.trim()) {
     alert('VA 엔진 연결에 필요한 정보를 모두 입력해주세요.');
     return;
   }
-  
-  if (vaEngines.value.some(c => c.ip === newVAEngine.value.ip)) {
+
+  if (vaEngines.value.some((c: any) => c.ip === newVAEngine.value.ip)) {
     alert('이미 등록된 VA 엔진 IP입니다.');
     return;
   }
 
-  vaEngines.value.push({ ...newVAEngine.value });
-  
-  if (vaEngines.value.length === 1) {
-    selectedVAEngineIP.value = newVAEngine.value.ip;
+  if (!wsConnected.value) {
+    alert('브로드캐스트 매니저와의 연결이 끊어졌습니다. 새로고침 해주세요.');
+    return;
   }
+
+  // 요청 전송
+  connectVA(newVAEngine.value.ip, newVAEngine.value.port, newVAEngine.value.id, newVAEngine.value.pw);
+
+  // UI 즉시 반영(백엔드 확인 후 중복 방지를 위해 store가 갱신될 수 있음)
+  vaEngines.value.push({ ...newVAEngine.value });
+  if (!selectedVAEngineIP.value) selectedVAEngineIP.value = newVAEngine.value.ip;
 
   newVAEngine.value = { ip: '', port: '', id: '', pw: '' };
 };
 
 const selectVAEngine = (ip: string) => {
-  selectedVAEngineIP.value = ip;
+  selectVA(ip);
 };
 </script>
 
