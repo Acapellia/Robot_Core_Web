@@ -82,15 +82,16 @@ export const useRobotStore = defineStore('robot', () => {
                 existing.robot_ip = newRobot.robot_ip;
                 existing.robot_port = newRobot.robot_port;
             } else {
-                // 새로운 로봇인 경우 기본 객체 밀어넣기
-                robots.value.push(newRobot);
+                // 새로운 로봇인 경우 기본 객체를 보강하여 밀어넣기 (isMain은 기본 false)
+                robots.value.push({ ...newRobot, isMain: false });
             }
         });
 
-        // 현재 아무것도 선택되지 않은 첫 구동 상태라면 리스트의 첫 번째 로봇을 메인으로 세팅
-        if (!selectedRobotId.value && robots.value.length > 0) {
+        // 메인 로봇이 없으면(선택 없음) 리스트의 첫 번째 로봇을 메인으로 세팅
+        const hasMain = robots.value.some(r => r.isMain === true);
+        if (!hasMain && robots.value.length > 0) {
             selectedRobotId.value = robots.value[0].id;
-            robots.value[0].isMain = true;
+            robots.value = robots.value.map((r, i) => ({ ...r, isMain: i === 0 }));
         }
     };
 
