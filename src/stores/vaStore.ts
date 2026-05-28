@@ -85,11 +85,12 @@ export const useVAStore = defineStore('va', () => {
 
   function connectVA(ip: string, port: string, id: string, pw: string) {
     const payload = JSON.stringify({
-      type: 'connect-va',
+      type: 'va_engine_connect',
       ip,
       port,
-      auth: { id, pw },
-      handshake: { header: { source: 'WEB_UI', client: 'robot_core_ui' } }
+      id,
+      pw,
+      handshake: `/users/login`
     });
 
     if (ws && ws.readyState === WebSocket.OPEN) {

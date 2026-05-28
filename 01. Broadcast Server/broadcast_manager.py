@@ -2,13 +2,8 @@
 import asyncio
 import json
 import logging
-import os
-import time
-import random
-import uuid
 from pathlib import Path
-from typing import Dict, List, Optional, Set
-import websockets
+from typing import Dict, List, Set
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
@@ -30,6 +25,12 @@ from src.MessageParser.message_parser import MessageParser
 from src.UpstreamManager.base import BaseConnection
 from src.UpstreamManager.pure_ws import PureWebSocketConnection
 from src.UpstreamManager.http_auth_ws import HttpAuthWebSocketConnection
+from src.UpstreamManager.connection_manager import (
+    build_hub_connection,
+    build_va_connection,
+    send_connected_hubs_to_web,
+    send_connected_vas_to_web
+)
 
 
 # =====================================================================
@@ -226,161 +227,31 @@ async def events_endpoint(websocket: WebSocket):
         logger.error(f"Events 통신 예외 에러: {e}")
         manager.events_broker.disconnect(websocket)
 
-
 @app.websocket("/ws/control")
 async def control_endpoint(websocket: WebSocket):
     await manager.control_broker.connect(websocket)
-    try:
-        current_hubs = []
-        for u in manager.upstreams:
-            hub = getattr(u, 'hub_info', None)
-            ws_obj = getattr(u, '_ws', None)
-            if hub and ws_obj is not None:
-                current_hubs.append(hub)
 
-        if current_hubs:
-            init_msg = {
-                'source': 'broadcast_manager',
-                'payload': {
-                    'type': 'CURRENT_HUBS',
-                    'hubs': current_hubs
-                }
-            }
-            await websocket.send_text(json.dumps(init_msg, ensure_ascii=False))
-    except Exception as e:
-        logger.warning(f"Control 초기 허브 목록 전송 실패: {e}")
+    await send_connected_hubs_to_web(websocket, manager)
+    await send_connected_vas_to_web(websocket, manager)
         
     try:
         while True:
             msg = await websocket.receive_text()
             data = json.loads(msg)
+            print(f"[Connect] Control 채널로부터 메시지 수신: {data}")
 
-            if data.get('type') == 'connect-hub':
-                ip = data.get('ip')
-                port = data.get('port')
-
-                if not ip or not port:
-                    continue
-
-                name = f"hub_{ip}_{port}"
-                if any(getattr(u, 'name', None) == name for u in manager.upstreams):
-                    continue
-
-                logger.info(f"새로운 허브 동적 추가 요청 접수 -> {ip}:{port}")
-
-                async def _on_connect(conn_obj):
-                    # attach hub_info for management and notify control channel
-                    conn_obj.hub_info = {'ip': ip, 'port': port, 'uri': f"ws://{ip}:{port}/"}
-                    if conn_obj not in manager.upstreams:
-                        manager.upstreams.append(conn_obj)
-
-                    success_msg = {
-                        'source': 'broadcast_manager',
-                        'payload': {
-                            'type': 'HUB_CONNECTED',
-                            'hub': conn_obj.hub_info
-                        }
-                    }
-                    await manager.control_broker.broadcast(success_msg)
-
-                # 선택: HTTP 인증이 필요한 경우 vs 순수 WS
-                if data.get('auth_url') or data.get('login_payload'):
-                    auth_url = data.get('auth_url')
-                    login_payload = data.get('login_payload', {})
-                    ws_template = data.get('ws_uri_template', f"ws://{ip}:{port}/")
-
-                    def ws_factory(token, template=ws_template):
-                        return template.replace("{token}", token) if "{token}" in template else template
-
-                    conn = HttpAuthWebSocketConnection(
-                        auth_url=auth_url,
-                        ws_uri_factory=ws_factory,
-                        login_payload=login_payload,
-                        name=name,
-                        inbound_queue=manager.raw_message_queue,
-                        outbound_queue=None,
-                        subprotocols=["va-metadata"],
-                        retry_interval=5,
-                        max_retries=10,
-                        on_connect=_on_connect
-                    )
-                else:
-                    conn = PureWebSocketConnection(
-                        ws_uri=f"ws://{ip}:{port}/",
-                        handshake_payload=data.get('handshake'),
-                        name=name,
-                        inbound_queue=manager.raw_message_queue,
-                        outbound_queue=None,
-                        retry_interval=5,
-                        max_retries=10,
-                        on_connect=_on_connect
-                    )
-
-                task = asyncio.create_task(conn.run_loop())
-                manager.upstream_tasks.append(task)
+            if data.get('type') == 'robot_hub_connect':
+                conn = build_hub_connection(data, manager)
+                if conn is not None:
+                    task = asyncio.create_task(conn.run_loop())
+                    manager.upstream_tasks.append(task)
 
             # VA 엔진 연결 요청 처리
-            if data.get('type') == 'connect-va':
-                ip = data.get('ip')
-                port = data.get('port')
-                auth = data.get('auth', {}) or {}
-
-                if not ip or not port:
-                    continue
-
-                name = f"va_{ip}_{port}"
-                if any(getattr(u, 'name', None) == name for u in manager.upstreams):
-                    continue
-
-                logger.info(f"새로운 VA 엔진 동적 추가 요청 접수 -> {ip}:{port}")
-
-                async def _on_connect(conn_obj):
-                    conn_obj.hub_info = {'ip': ip, 'port': port, 'uri': f"ws://{ip}:{port}/"}
-                    if conn_obj not in manager.upstreams:
-                        manager.upstreams.append(conn_obj)
-
-                    success_msg = {
-                        'source': 'broadcast_manager',
-                        'payload': {
-                            'type': 'VA_CONNECTED',
-                            'va': conn_obj.hub_info
-                        }
-                    }
-                    await manager.control_broker.broadcast(success_msg)
-
-                # auth_url 및 login_payload 기본값 구성
-                auth_url = data.get('auth_url') or f"http://{ip}:{port}/users/login"
-                login_payload = data.get('login_payload') or {'id': auth.get('id'), 'pw': auth.get('pw')}
-                # 기본 템플릿: api-key 파라미터와 채널(hubMeta 포함)을 요청하도록 구성
-                ws_template = data.get('ws_uri_template') or f"ws://{ip}:{port}/?api-key={{token}}&ch=0,1,2,3&hubMeta"
-
-                def ws_factory(token, template=ws_template):
-                    from urllib.parse import quote_plus
-                    safe = quote_plus(str(token))
-                    return template.replace("{token}", safe) if "{token}" in template else template
-
-                async def on_auth_token(token, conn_obj=None):
-                    # 서버에서 토큰을 저장하고 로깅만 수행 — 클라이언트(vaStore)에는 전파하지 않음
-                    key = f"{ip}:{port}"
-                    manager.va_tokens[key] = token
-                    logger.info(f"[VA TOKEN] {key} -> {token}")
-
-                conn = HttpAuthWebSocketConnection(
-                    auth_url=auth_url,
-                    ws_uri_factory=ws_factory,
-                    login_payload=login_payload,
-                    name=name,
-                    inbound_queue=manager.raw_message_queue,
-                    outbound_queue=None,
-                    subprotocols=["va-metadata"],
-                    retry_interval=5,
-                    max_retries=10,
-                    on_connect=_on_connect,
-                    on_auth_token=on_auth_token
-                )
-
-                task = asyncio.create_task(conn.run_loop())
-                manager.upstream_tasks.append(task)
+            if data.get('type') == 'va_engine_connect':
+                conn = build_va_connection(data, manager)
+                if conn is not None:
+                    task = asyncio.create_task(conn.run_loop())
+                    manager.upstream_tasks.append(task)
                 
     except WebSocketDisconnect:
         manager.control_broker.disconnect(websocket)

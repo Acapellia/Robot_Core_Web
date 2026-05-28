@@ -95,14 +95,14 @@ export const useHubStore = defineStore('hub', () => {
   // 1. [요청] 허브 추가 버튼 눌렀을 때 사용될 허브 연결 요청 기능
   function connectHub(ip: string, port: string) {
     const payload = JSON.stringify({
-      type: 'connect-hub',
+      type: 'robot_hub_connect',
       ip,
       port,
-      handshake: { header: { source: 'WEB_UI', client: 'robot_core_ui' } }
+      handshake:  "header: { source: 'WEB_UI', client: 'robot_core_web' }"
     });
 
     if (ws && ws.readyState === WebSocket.OPEN) {
-      console.info('[hubStore] connect-hub 전송 ->', ip, port);
+      console.info('[Connect] robot_hub_connect 전송 ->', ip, port);
       ws.send(payload);
       return;
     }
