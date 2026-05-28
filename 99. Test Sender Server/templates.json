@@ -20,7 +20,7 @@
         "title": "Request Robot Lists",
         "header": {
             "version": "1.0",
-            "type": "robot list",
+            "type": "robot_list_update",
             "sessionid": "0",
             "protocol_source": "HUB",
             "protocol_category": "STATE",
@@ -51,7 +51,7 @@
         "title": "Robot State",
         "header": {
             "version": "1.0",
-            "type": "robot_state",
+            "type": "robot_state_update",
             "sessionid": "0",
             "protocol_source": "ROBOT",
             "protocol_category": "STATE",
@@ -89,7 +89,7 @@
         "title": "Robot Event (single)",
         "header": {
             "version": "1.0",
-            "type": "robot_event",
+            "type": "robot_event_update",
             "sessionid": "0",
             "protocol_source": "AI",
             "protocol_category": "EVENT",
@@ -111,7 +111,7 @@
         "title": "Robot Events",
         "header": {
             "version": "1.0",
-            "type": "robot_event",
+            "type": "robot_event_update",
             "sessionid": "0",
             "protocol_source": "AI",
             "protocol_category": "EVENT",

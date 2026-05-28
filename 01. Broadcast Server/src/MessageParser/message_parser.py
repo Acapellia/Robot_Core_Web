@@ -75,7 +75,7 @@ class MessageParser:
             "type": "ROBOT_EVENT_UPDATE",
             "robot_events": [
                 {
-                    "event_id": f"{payload.get("uid")}_{payload.get("type")}_{payload.get("event_status")}_{random.randint(100000, 999999)}",  # vaMeta는 고유 이벤트 ID가 없으므로 임의 생성),
+                    "event_id": f"{payload.get('uid')}_{payload.get('type')}_{payload.get('event_status')}_{random.randint(100000, 999999)}",  # vaMeta는 고유 이벤트 ID가 없으므로 임의 생성),
                     "robot_id": "NEO-01",
                     "type": "SYSTEM",
                     "time": datetime.fromtimestamp(header.get("timestamp") / 1000).strftime("%H:%M:%S"),
@@ -87,9 +87,9 @@ class MessageParser:
     # --- 파서 및 채널 매핑 테이블 테이블 ---
     # 신규 메시지가 추가되면 이 딕셔너리에 '키', '채널', '파서함수'만 등록하면 됩니다.
     PARSER_REGISTRY = {
-        "robot_list": {"channel": "telemetry", "parser": _parse_robot_list.__func__},
-        "robot_states": {"channel": "telemetry", "parser": _parse_robot_states.__func__},
-        "robot_events": {"channel": "events", "parser": _parse_robot_events.__func__},
+        "robot_list_update": {"channel": "telemetry", "parser": _parse_robot_list.__func__},
+        "robot_state_update": {"channel": "telemetry", "parser": _parse_robot_states.__func__},
+        "robot_event_update": {"channel": "events", "parser": _parse_robot_events.__func__},
         "event_detected": {"channel": "events", "parser": _parse_va_meta.__func__},
         "event_finished": {"channel": "events", "parser": _parse_va_meta.__func__},
     }
