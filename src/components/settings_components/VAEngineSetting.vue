@@ -50,9 +50,8 @@
             <!-- 💡 변경: 윗줄에 VA 엔진 이름, 아랫줄에 IP와 PORT 배치 -->
             <div class="va-engine-info">
               <div class="va-engine-meta">
-                <span class="va-engine-ip">{{ vaEngine.ip }}</span>
-                <span class="divider">:</span>
-                <span class="va-engine-port">{{ vaEngine.port }}</span>
+                <div class="va-engine-ip">{{ vaEngine.ip }}</div>
+                <div class="va-engine-port">{{ vaEngine.port }}</div>
               </div>
             </div>
             <div class="status">
@@ -315,15 +314,24 @@ const selectVAEngine = (ip: string) => {
 
 .va-engine-meta {
   display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: #a3aed0;
-  font-weight: 500;
+  flex-direction: column;
+  gap: 4px;
 }
 
-.divider {
-  color: #cbd5e1;
+.va-engine-ip {
+  font-size: 15px;
+  font-weight: 800;
+  color: #2b3674;
+}
+
+.va-engine-item.active .va-engine-ip {
+  color: #1a3ba5;
+}
+
+.va-engine-port {
+  font-size: 12px;
+  color: #a3aed0;
+  font-weight: 600;
 }
 
 /* 상태 표시 */
