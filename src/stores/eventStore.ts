@@ -14,6 +14,8 @@ export interface RobotEvent {
 const INITIAL_EVENTS: RobotEvent[] = [
 ];
 
+const MAX_EVENT_ITEM_SIZE = 10;
+
 export const useEventStore = defineStore('event', () => {
   const events = ref<RobotEvent[]>(INITIAL_EVENTS);
   const isLoading = ref(false);
@@ -56,9 +58,11 @@ export const useEventStore = defineStore('event', () => {
   }
 
   const updateEventList = (robotEvents: RobotEvent[]) => {
-    // 대입 말고 추가가 되어야 함
-    // events.value = robotEvents;
-    events.value = [...events.value, ...robotEvents].slice(0, 100);
+    // 1. 기존 이벤트 뒤에 새 이벤트를 붙입니다.
+    const combined = [...events.value, ...robotEvents];
+    
+    // 2. 5개가 넘어가면 가장 오래된 '앞쪽' 이벤트를 버리고 '최신(뒤쪽)' 5개만 유지합니다.
+    events.value = combined.slice(-MAX_EVENT_ITEM_SIZE); 
   };
 
   function startMonitoring() {

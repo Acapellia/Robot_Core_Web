@@ -62,40 +62,57 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick, onUnmounted } from 'vue';
+import { ref, watch, onUnmounted } from 'vue';
 import { useRobotEvents } from '../../composables/useRobotEvents';
 
 const { events, isLoading, error, downloadLogCsv } = useRobotEvents();
 
 const virtualEvents = ref<any[]>([]);
 let intervalId: any = null;
-let currentRenderedIndex = 0;
+
+// 애니메이션 처리를 대기하는 이벤트 큐
+const eventQueue: any[] = [];
 
 const startHydrationLoop = () => {
   if (intervalId) return;
 
-  intervalId = setInterval(async () => {
-    const rawEvents = events.value;
-    if (!rawEvents || rawEvents.length === 0) return;
-
-    if (rawEvents.length > currentRenderedIndex) {
-      const nextEventToRender = rawEvents[currentRenderedIndex];
+  intervalId = setInterval(() => {
+    // 큐에 처리할 이벤트가 있다면 하나씩 꺼내서 virtualEvents에 추가
+    if (eventQueue.length > 0) {
+      const nextEvent = eventQueue.shift();
       
-      if (nextEventToRender) {
-        virtualEvents.value.push(nextEventToRender);
-        currentRenderedIndex++; 
-        
-        await nextTick();
+      // 화면에도 최대 5개만 유지되도록 설정 (오래된 것 제거)
+      if (virtualEvents.value.length >= 5) {
+        virtualEvents.value.shift(); // 가장 오래된 첫 번째 아이템 삭제
       }
+      
+      virtualEvents.value.push(nextEvent);
     }
-  }, 60);
+  }, 60); // 60ms 간격으로 하나씩 퐁퐁 튀어나옴
 };
 
-watch(events, (newVal) => {
-  if (newVal && newVal.length > 0) {
+// 스토어의 이벤트를 감시하여 큐에 삽입
+watch(events, (newEvents) => {
+  if (!newEvents || newEvents.length === 0) return;
+
+  // 이미 화면에 있거나 큐에 대기 중인 ID 집합 생성 (중복 방지)
+  const existingIds = new Set([
+    ...virtualEvents.value.map(e => e.event_id),
+    ...eventQueue.map(e => e.event_id)
+  ]);
+
+  // 스토어에 들어온 이벤트 중, 아직 추가되지 않은 신규 이벤트만 큐에 push
+  newEvents.forEach(event => {
+    if (!existingIds.has(event.event_id)) {
+      eventQueue.push(event);
+    }
+  });
+
+  // 루프 시작
+  if (eventQueue.length > 0) {
     startHydrationLoop();
   }
-}, { immediate: true });
+}, { immediate: true, deep: true });
 
 onUnmounted(() => {
   if (intervalId) {
