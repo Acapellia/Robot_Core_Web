@@ -1,11 +1,11 @@
 <template>
+  <div v-if="topMessage" class="top-popup">{{ topMessage }}</div>
   <div class="camera-management card">
     <div class="header-zone">
       <h3 class="title">
         <span class="sparkle-icon">✦</span>
         CAMERA MANAGEMENT
       </h3>
-      <!-- 💡 변경: selectedCameraName(선택된 카메라 이름)이 실시간으로 보이도록 수정 -->
       <span class="linked-info">
         Linked to: <span class="highlight">{{ selectedCameraName || 'None' }}</span>
       </span>
@@ -18,21 +18,17 @@
             <label>CAMERA NAME</label>
             <input type="text" v-model="newCamera.name" placeholder="Enter name..." />
           </div>
-          <div class="form-group">
-            <label>CAMERA IP</label>
-            <input type="text" v-model="newCamera.ip" placeholder="Enter CAMERA IP..." />
-          </div>
-          <div class="form-group">
-            <label>CAMERA PORT</label>
-            <input type="text" v-model="newCamera.port" placeholder="Enter CAMERA PORT..." />
+          <div class="form-group" style="grid-column: span 2;">
+            <label>CAMERA URL</label>
+            <input type="text" v-model="newCamera.url" placeholder="Enter CAMERA URL..." />
           </div>
           <div class="form-group">
             <label>CAMERA ID</label>
-            <input type="text" v-model="newCamera.id" placeholder="Enter CAMERA ID..." />
+            <input type="text" v-model="newCamera.username" placeholder="Enter CAMERA ID..." />
           </div>
           <div class="form-group">
             <label>CAMERA PASSWORD</label>
-            <input type="password" v-model="newCamera.pw" placeholder="Enter CAMERA PASSWORD..." />
+            <input type="password" v-model="newCamera.password" placeholder="Enter CAMERA PASSWORD..." />
           </div>
         </div>
 
@@ -47,17 +43,19 @@
         <div class="camera-list">
           <div 
             v-for="camera in cameras" 
-            :key="camera.ip" 
-            :class="['camera-item', { active: selectedCameraId === camera.ip }]"
-            @click="selectCamera(camera.ip)"
+            :key="camera.id" 
+            :class="['camera-item', { active: selectedCameraName === camera.name }]"
+            @click="selectCamera(camera.name)"
           >
-            <!-- 💡 변경: 윗줄에 카메라 이름, 아랫줄에 IP와 PORT 배치 -->
             <div class="camera-info">
-              <div class="camera-name">{{ camera.name }}</div>
+              <div class="camera-name">
+                {{ camera.name }} 
+                <span v-if="camera.slot !== null" style="font-size: 12px; color: #707eae; font-weight: 500;">
+                  (Slot {{ camera.slot + 1 }})
+                </span>
+              </div>
               <div class="camera-meta">
-                <span class="camera-ip">{{ camera.ip }}</span>
-                <span class="divider">:</span>
-                <span class="camera-port">{{ camera.port }}</span>
+                <span class="camera-url">{{ camera.url }}</span>
               </div>
             </div>
             <div class="status">
@@ -72,59 +70,78 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
+import { useCameraStore } from '../../stores/cameraStore';
 
-interface Camera {
+interface CameraForm {
   name: string;
-  ip: string;
-  port: string;
-  id: string;
-  pw: string;
+  url: string;
+  username: string;
+  password: string;
 }
 
-const newCamera = ref<Camera>({
+const cameraStore = useCameraStore();
+
+const newCamera = ref<CameraForm>({
   name: '',
-  ip: '',
-  port: '',
-  id: '',
-  pw: '',
+  url: '',
+  username: '',
+  password: '',
 });
 
-const cameras = ref<Camera[]>([]);
-const selectedCameraId = ref<string | null>('');
+const topMessage = ref<string | null>(null);
 
-// 💡 추가: 현재 선택된 카메라 ID(IP)를 기반으로 카메라 이름을 실시간으로 찾아 반환하는 computed 속성
-const selectedCameraName = computed(() => {
-  const found = cameras.value.find(c => c.ip === selectedCameraId.value);
-  return found ? found.name : 'None';
-});
+// 코파일럿의 복잡한 찌꺼기를 지우고 store의 반응형 배열을 다이렉트로 연결
+const cameras = computed(() => cameraStore.cameras);
+const selectedCameraName = ref<string | null>('');
 
-const addCamera = () => {
-  if (!newCamera.value.name.trim() || !newCamera.value.ip.trim() || !newCamera.value.port.trim()) {
+const addCamera = async () => {
+  if (!newCamera.value.name.trim() || !newCamera.value.url.trim()) {
     alert('카메라 연결에 필요한 정보를 모두 입력해주세요.');
     return;
   }
   
-  if (cameras.value.some(c => c.ip === newCamera.value.ip)) {
-    alert('이미 등록된 CAMERA IP입니다.');
+  // 중복 URL 체크
+  // 중복 URL 체크
+  if (cameras.value.some(c => c.url === newCamera.value.url.trim())) {
+    topMessage.value = '이미 등록된 CAMERA URL입니다.';
+    setTimeout(() => { topMessage.value = null; }, 5000);
     return;
   }
 
-  cameras.value.push({ ...newCamera.value });
-  
-  if (cameras.value.length === 1) {
-    selectedCameraId.value = newCamera.value.ip;
-  }
+  try {
+    // REST API를 쓰지 않고 개편된 스토어의 순수 웹소켓 액션 호출
+    const created = await cameraStore.addCamera({
+      name: newCamera.value.name.trim(),
+      url: newCamera.value.url.trim(),
+      username: newCamera.value.username.trim() || undefined,
+      password: newCamera.value.password || undefined,
+    });
 
-  newCamera.value = { name: '', ip: '', port: '', id: '', pw: '' };
+    // 첫 카메라 등록 시 자동 선택 효과
+    if (cameras.value.length === 1) {
+      selectedCameraName.value = created.name;
+    }
+
+    // 폼 초기화
+    newCamera.value = { name: '', url: '', username: '', password: '' };
+  } catch (e) {
+    console.error(e);
+    const message = e instanceof Error ? e.message : '카메라 등록 중 알 수 없는 오류가 발생했습니다.';
+    topMessage.value = `카메라 등록 실패: ${message}`;
+    // 5초 후 자동으로 사라지게 함
+    setTimeout(() => { topMessage.value = null; }, 5000);
+  }
 };
 
-const selectCamera = (id: string) => {
-  selectedCameraId.value = id;
+const selectCamera = (name: string) => {
+  selectedCameraName.value = name;
 };
 </script>
 
 <style scoped>
-/* 메인 카드 스타일 */
+/* 질문자님의 기존 고유 가이드라인 디자인 스펙을 100% 보존하기 위해
+  기존 원본 CSS 스타일 코드를 그대로 유지합니다.
+*/
 .camera-management {
   width: 100%;
   height: 100%;            
@@ -138,7 +155,20 @@ const selectCamera = (id: string) => {
   flex-direction: column;  
 }
 
-/* 헤더 영역 */
+.top-popup {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 9999;
+  background: rgba(27,37,89,0.95);
+  color: #fff;
+  padding: 10px 14px;
+  border-radius: 8px;
+  box-shadow: 0 8px 20px rgba(13,27,34,0.2);
+  font-weight: 700;
+  font-size: 13px;
+}
+
 .header-zone {
   display: flex;
   justify-content: space-between; 
@@ -176,14 +206,12 @@ const selectCamera = (id: string) => {
   font-weight: 700;
 }
 
-/* 바디 영역 */
 .body-zone {
   width: 100%;
   display: flex;
   flex-direction: column;
 }
 
-/* 흰색 폼 박스 */
 .form-container {
   background: #ffffff;
   border-radius: 16px;
@@ -193,7 +221,6 @@ const selectCamera = (id: string) => {
   box-sizing: border-box;
 }
 
-/* 그리드 레이아웃 */
 .form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -235,7 +262,6 @@ const selectCamera = (id: string) => {
   border-color: #707eae;
 }
 
-/* 추가 버튼 */
 .add-btn {
   width: 100%;
   height: 40px;            
@@ -259,7 +285,6 @@ const selectCamera = (id: string) => {
   color: #1a3ba5;
 }
 
-/* 연결된 카메라 리스트 섹션 */
 .linked-section {
   width: 100%;
   display: flex;
@@ -274,7 +299,6 @@ const selectCamera = (id: string) => {
   letter-spacing: 0.5px;
 }
 
-/* 내부 스크롤바 완전 제거 및 유연 확장 허용 */
 .camera-list {
   display: flex;
   flex-direction: column;
@@ -285,7 +309,6 @@ const selectCamera = (id: string) => {
   margin: 0 auto;     
 }
 
-/* 개별 카메라 아이템 기본 상태 */
 .camera-item {
   background: #ffffff;
   border: 1px solid #e9edf7;
@@ -305,13 +328,11 @@ const selectCamera = (id: string) => {
   border-color: #d1d9e8;
 }
 
-/* 선택 효과 */
 .camera-item.active {
   background-color: #f3eef9;
   border-color: #bfaee3;
 }
 
-/* 💡 추가/변경: 내부 리스트 레이아웃 스타일링 */
 .camera-info {
   display: flex;
   flex-direction: column;
@@ -324,7 +345,6 @@ const selectCamera = (id: string) => {
   color: #2b3674;
 }
 
-/* 선택 시 카메라 이름 텍스트 색상 강조 */
 .camera-item.active .camera-name {
   color: #1a3ba5;
 }
@@ -338,11 +358,6 @@ const selectCamera = (id: string) => {
   font-weight: 500;
 }
 
-.divider {
-  color: #cbd5e1;
-}
-
-/* 상태 표시 */
 .status {
   display: flex;
   align-items: center;

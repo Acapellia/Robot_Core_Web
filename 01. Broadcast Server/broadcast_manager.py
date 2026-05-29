@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
 import asyncio
+from collections import deque
+import struct
+import time
+from asyncio.subprocess import PIPE
 import json
 import logging
 from pathlib import Path
 from typing import Dict, List, Set
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
@@ -32,6 +37,9 @@ from src.UpstreamManager.connection_manager import (
     send_connected_vas_to_web
 )
 
+# ⭐️ [새로 만든 카메라 전담 모듈 가져오기]
+from src.CameraManager.rtsp_streamer import CameraStreamManager
+
 
 # =====================================================================
 # [PART 3] 다운스트림 채널 브로커 (Downstream Channels)
@@ -44,14 +52,39 @@ class DownstreamChannelBroker:
         self.active_connections: Set[WebSocket] = set()
 
     async def connect(self, websocket: WebSocket):
-        await websocket.accept()
+        req_proto = websocket.headers.get('sec-websocket-protocol')
+        chosen = None
+        if req_proto:
+            try:
+                protos = [p.strip() for p in req_proto.split(',') if p.strip()]
+                if 'stream' in protos:
+                    chosen = 'stream'
+            except Exception:
+                protos = []
+
+        try:
+            if chosen:
+                await websocket.accept(subprotocol=chosen)
+            else:
+                await websocket.accept()
+        except Exception as e:
+            logger.warning(f"[{self.channel_name}] websocket.accept error: {e}")
+            try:
+                await websocket.accept()
+            except Exception:
+                pass
+
         self.active_connections.add(websocket)
-        logger.info(f"[{self.channel_name}] 웹 클라이언트 접속 완료 (현재 접속자: {len(self.active_connections)}명)")
+        client = getattr(websocket, 'client', None)
+        client_str = f"{client[0]}:{client[1]}" if client else "unknown"
+        logger.info(f"[{self.channel_name}] 웹 클라이언트 접속 완료 from {client_str} subproto={chosen or 'none'} (현재 접속자: {len(self.active_connections)}명)")
 
     def disconnect(self, websocket: WebSocket):
         if websocket in self.active_connections:
             self.active_connections.remove(websocket)
-            logger.info(f"[{self.channel_name}] 웹 클라이언트 접속 종료 (현재 접속자: {len(self.active_connections)}명)")
+            client = getattr(websocket, 'client', None)
+            client_str = f"{client[0]}:{client[1]}" if client else "unknown"
+            logger.info(f"[{self.channel_name}] 웹 클라이언트 접속 종료 from {client_str} (현재 접속자: {len(self.active_connections)}명)")
 
     async def broadcast(self, message: dict):
         if not self.active_connections:
@@ -79,20 +112,21 @@ class BroadcastManager:
         self.upstream_tasks: List[asyncio.Task] = []
         self.upstreams: List[BaseConnection] = []
         
-        # 1. 채널 브로커 세분화
+        # 1. 오리지널 로봇 데이터 채널 브로커 유지
         self.telemetry_broker = DownstreamChannelBroker(channel_name="Telemetry")
         self.events_broker = DownstreamChannelBroker(channel_name="Events")
         self.control_broker = DownstreamChannelBroker(channel_name="Control")
         
+        # ⭐️ [카메라 스트림 전담 모듈 컴포지션 결합]
+        self.camera_manager = CameraStreamManager()
+        
         self.saved_server_entries: List[dict] = []
 
-        # ⭐️ [핵심 개선] 질문자님의 아키텍처 철학 반영: 두 개의 독립적인 메시지 큐 생성
-        self.raw_message_queue = asyncio.Queue()     # 수신된 원시 메시지가 모이는 큐
-        self.parsed_message_queue = asyncio.Queue()  # 파싱이 완료된 메시지가 모이는 큐
+        # 오리지널 질문자님의 아키텍처 철학 독립 큐 유지
+        self.raw_message_queue = asyncio.Queue()     
+        self.parsed_message_queue = asyncio.Queue()  
 
-        # 백그라운드 전용 일꾼(Worker)들을 담을 리스트
         self.worker_tasks: List[asyncio.Task] = []
-        # VA tokens mapping kept only on server-side: {(ip,port): token}
         self.va_tokens: Dict[str, str] = {}
 
     def load_config(self) -> list:
@@ -105,75 +139,56 @@ class BroadcastManager:
             logger.error(f"설정 파일 로딩 실패: {e}")
             return []
 
-    # -----------------------------------------------------------------
-    # 🏃‍♂️ 백그라운드 독립 일꾼 1: 오직 파싱만 전담 (Parser Worker)
-    # -----------------------------------------------------------------
+    # 🏃‍♂️ 오리지널 백그라운드 독립 일꾼 1: 파싱 전담 유지
     async def _message_parser_worker(self):
-        """raw_message_queue를 상시 감시하며 데이터가 들어오면 파싱 후 다음 단계 큐로 넘김"""
         logger.info("[Parser Worker] 가동 시작 - 원시 메시지 파싱 전담")
         while True:
             try:
                 source_name, raw_msg = await self.raw_message_queue.get()
-                
-                # 오직 파싱 및 목적지 판별만 수행 (기능적 완벽 분리)
                 parsed = MessageParser.parse_and_route(source_name, raw_msg)
-                print(f"Parsed message from {source_name}: {parsed}")
-                
                 if parsed:
-                    # 파싱이 끝난 결과물을 분배(Delivery) 큐로 토스
                     await self.parsed_message_queue.put(parsed)
-                    
                 self.raw_message_queue.task_done()
             except asyncio.CancelledError:
                 break
             except Exception as e:
                 logger.error(f"[Parser Worker] 에러 발생: {e}")
 
-    # -----------------------------------------------------------------
-    # 🏃‍♂️ 백그라운드 독립 일꾼 2: 오직 재전송/분배만 전담 (Delivery Worker)
-    # -----------------------------------------------------------------
+    # 🏃‍♂️ 오리지널 백그라운드 독립 일꾼 2: 재전송/분배 전담 유지
     async def _message_delivery_worker(self):
-        """parsed_message_queue를 상시 감시하며 가공된 메시지를 최종 목적지 채널로 전송"""
         logger.info("[Delivery Worker] 가동 시작 - 파싱된 메시지 목적지 배송 전담")
         while True:
             try:
                 parsed_msg = await self.parsed_message_queue.get()
-                
-                # 목적지 타겟 채널 추출
                 target = parsed_msg.pop("target_channel", "telemetry")
 
-                # 알맞은 목적지 브로커를 찾아서 실시간 방송(Broadcast)
                 if target == "events":
                     await self.events_broker.broadcast(parsed_msg)
                 else:
                     await self.telemetry_broker.broadcast(parsed_msg)
                     
                 self.parsed_message_queue.task_done()
-            except asyncio.read_to_end_of_file:
+            except asyncio.CancelledError:
                 break
             except Exception as e:
                 logger.error(f"[Delivery Worker] 에러 발생: {e}")
 
     async def start(self):
-        """서버 기동 시 백그라운드 전용 파이프라인 일꾼들을 먼저 깨웁니다."""
         self.saved_server_entries = self.load_config()
-        
-        # 역할별 전용 일꾼(태스크) 배치 및 구동
         self.worker_tasks.append(asyncio.create_task(self._message_parser_worker()))
         self.worker_tasks.append(asyncio.create_task(self._message_delivery_worker()))
-        
         logger.info(f"설정 로드 완료 및 역할별 파이프라인 일꾼 워커(Parser/Delivery) 가동 완료.")
 
     async def stop(self):
-        # 웹소켓 업스트림 중단
         for conn in self.upstreams:
             conn.stop()
         for task in self.upstream_tasks:
             task.cancel()
-            
-        # 내부 파이프라인 일꾼 워커 중단
         for task in self.worker_tasks:
             task.cancel()
+            
+        # ⭐️ [카메라 서브 모듈 자원 일괄 중단]
+        await self.camera_manager.stop_all()
             
         await asyncio.gather(*self.upstream_tasks, *self.worker_tasks, return_exceptions=True)
 
@@ -202,6 +217,7 @@ async def shutdown_event():
     await manager.stop()
 
 
+# --- 오리지널 비즈니스 제어 채널 엔드포인트 완벽 유지 ---
 @app.websocket("/ws/robots/telemetry")
 async def telemetry_endpoint(websocket: WebSocket):
     await manager.telemetry_broker.connect(websocket)
@@ -230,7 +246,6 @@ async def events_endpoint(websocket: WebSocket):
 @app.websocket("/ws/control")
 async def control_endpoint(websocket: WebSocket):
     await manager.control_broker.connect(websocket)
-
     await send_connected_hubs_to_web(websocket, manager)
     await send_connected_vas_to_web(websocket, manager)
         
@@ -238,15 +253,12 @@ async def control_endpoint(websocket: WebSocket):
         while True:
             msg = await websocket.receive_text()
             data = json.loads(msg)
-            print(f"[Connect] Control 채널로부터 메시지 수신: {data}")
-
             if data.get('type') == 'robot_hub_connect':
                 conn = build_hub_connection(data, manager)
                 if conn is not None:
                     task = asyncio.create_task(conn.run_loop())
                     manager.upstream_tasks.append(task)
 
-            # VA 엔진 연결 요청 처리
             if data.get('type') == 'va_engine_connect':
                 conn = build_va_connection(data, manager)
                 if conn is not None:
@@ -258,6 +270,80 @@ async def control_endpoint(websocket: WebSocket):
     except Exception as e:
         logger.error(f"Control 채널 통신 예외 에러: {e}")
         manager.control_broker.disconnect(websocket)
+
+
+# =====================================================================
+# 🎥 콤포지션 이식: 개편된 전담 카메라 컨트롤 및 비디오 라우팅 스트림 채널
+# =====================================================================
+@app.websocket("/ws/camera_control")
+async def camera_control_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    try:
+        while True:
+            msg = await websocket.receive_text()
+            try:
+                data = json.loads(msg)
+            except Exception:
+                continue
+
+            action = data.get("type") or data.get("action")
+            if action in ("connect", "camera_connect"):
+                url = data.get("url")
+                username = data.get("username")
+                password = data.get("password")
+                slot = data.get("slot")
+
+                # 슬롯 지정 누락 시 사용 가능한 슬롯(0~5) 찾아서 자동 매핑
+                if slot is None:
+                    for i in range(6):
+                        if i not in manager.camera_manager.stream_tasks:
+                            slot = i
+                            break
+                    if slot is None: slot = 0
+
+                try:
+                    # 신규 카메라 전담 모듈 가동 트리거
+                    await manager.camera_manager.start_rtsp_stream(slot, url, username, password)
+                    
+                    ws_scheme = 'wss' if websocket.url.scheme == 'wss' else 'ws'
+                    host = websocket.headers.get('host') or 'localhost:8000'
+                    stream_url = f"{ws_scheme}://{host}/live?ch={slot}"
+
+                    await websocket.send_text(json.dumps({
+                        "type": "camera_connected",
+                        "slot": slot,
+                        "streamUrl": stream_url
+                    }))
+                except Exception as e:
+                    logger.error(f"카메라 모듈 가동 실패 (Slot {slot}): {e}")
+    except WebSocketDisconnect:
+        pass
+
+
+@app.websocket("/live")
+async def live_endpoint(websocket: WebSocket):
+    params = websocket.query_params
+    ch = params.get('ch', '0')
+    try:
+        ch_idx = int(ch)
+    except Exception:
+        ch_idx = 0
+
+    # 카메라 스트리머 매니저 내부의 브로커 풀에서 가져와 소켓 결합
+    if ch_idx not in manager.camera_manager.live_brokers:
+        from src.CameraManager.rtsp_streamer import DownstreamChannelBroker
+        manager.camera_manager.live_brokers[ch_idx] = DownstreamChannelBroker(channel_name=f"Live-Slot-{ch_idx}")
+
+    broker = manager.camera_manager.live_brokers[ch_idx]
+    await broker.connect(websocket)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        broker.disconnect(websocket)
+    except Exception as e:
+        logger.error(f"Live 바이너리 엔드포인트 통신 장애 (Slot {ch_idx}): {e}")
+        broker.disconnect(websocket)
 
 
 if __name__ == '__main__':
