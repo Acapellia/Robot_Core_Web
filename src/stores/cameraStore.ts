@@ -1,6 +1,9 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 
+// ==========================================
+// 1. 타입 정의 및 설정값
+// ==========================================
 export interface CameraItem {
     id: string;
     name: string;
@@ -11,35 +14,33 @@ export interface CameraItem {
     slot: number | null;
 }
 
-export const STREAM_VALIDATION = {
-    maxAttempts: 3,
-    attemptDelayMs: 500,
-    attemptTimeoutMs: 5000,
+// 스트림 검증 관련 설정
+const STREAM_VALIDATION = {
+    maxAttempts: 3,       // 최대 재시도 횟수
+    attemptDelayMs: 500,  // 재시도 사이의 간격 (0.5초)
+    timeoutMs: 5000,      // 웹소켓 연결 타임아웃 (5초)
 };
 
 export const useCameraStore = defineStore('camera', () => {
+    // 상태 관리 (등록된 카메라 목록)
     const cameras = ref<CameraItem[]>([]);
 
-    function getApiBase() {
-        const envBase = (import.meta as any)?.env?.VITE_API_BASE_URL;
-        if (envBase) return envBase.replace(/\/$/, '');
-        return `${window.location.protocol}//${window.location.hostname}:8000`;
-    }
 
-    function makeWsUrl() {
-        const base = getApiBase();
-        return base.replace(/^http/, 'ws') + '/ws/camera_control';
-    }
+    // ==========================================
+    // 3. 핵심 비즈니스 로직 함수 (분리됨)
+    // ==========================================
 
-    function addCamera(payload: Omit<CameraItem, 'id' | 'slot' | 'streamUrl'>) {
-        return new Promise<CameraItem>((resolve, reject) => {
-            const wsUrl = makeWsUrl();
-            const ws = new WebSocket(wsUrl);
+    // NOTE: Stream validation moved to server-side (BroadcastManager / CameraStreamManager).
 
-            const timer = setTimeout(() => {
-                ws.close();
-                reject(new Error('카메라 제어 웹소켓 타임아웃'));
-            }, STREAM_VALIDATION.attemptTimeoutMs);
+    /**
+     * [단계 1] 백엔드에 카메라 연결을 요청하고 스트림 URL을 받아옵니다.
+     */
+    function requestCameraConnect(payload: Omit<CameraItem, 'id' | 'slot' | 'streamUrl'>): Promise<{ streamUrl: string; slot: number }> {
+        return new Promise((resolve, reject) => {
+            const hostname = 'localhost';
+            const ws_url = `ws://${hostname}:8000/ws/camera_control`;
+
+            const ws = new WebSocket(ws_url);
 
             ws.onopen = () => {
                 ws.send(JSON.stringify({
@@ -47,134 +48,61 @@ export const useCameraStore = defineStore('camera', () => {
                     url: payload.url,
                     username: payload.username,
                     password: payload.password,
-                    slot: null // 백엔드 자동 할당 유도
+                    slot: null // 백엔드가 자동으로 슬롯을 할당하도록 설정
                 }));
             };
 
             ws.onmessage = (event) => {
-                clearTimeout(timer);
+                // clearTimeout(timer);
+                ws.close();
+
                 try {
                     const res = JSON.parse(event.data);
-                    if (res.type === 'camera_connected') {
-                        const streamUrl: string | undefined = res.streamUrl;
-
-                        if (!streamUrl) {
-                            reject(new Error('스트림 URL이 제공되지 않았습니다.'));
-                            ws.close();
-                            return;
-                        }
-
-                        // 스트림에 대해 여러 번(최대 10회) 시도하여 첫 유효 프레임을 받을 때까지 대기
-                        const maxAttempts = STREAM_VALIDATION.maxAttempts;
-                        const attemptDelayMs = STREAM_VALIDATION.attemptDelayMs;
-
-                        const tryStreamWithRetries = (): Promise<void> => {
-                            return new Promise((resok, rej) => {
-                                let attempts = 0;
-                                let stopped = false;
-                                let pendingTimer: ReturnType<typeof setTimeout> | null = null;
-
-                                const clearPending = () => {
-                                    if (pendingTimer) {
-                                        clearTimeout(pendingTimer as any);
-                                        pendingTimer = null;
-                                    }
-                                };
-
-                                const tryOnce = () => {
-                                    if (stopped) return;
-                                    attempts += 1;
-                                    let testWs: WebSocket | null = null;
-
-                                    const attemptTimer = setTimeout(() => {
-                                        try { testWs && testWs.close(); } catch (_) {}
-                                        testWs = null;
-                                        if (attempts >= maxAttempts) {
-                                            stopped = true;
-                                            rej(new Error(`스트림 연결 실패 (${maxAttempts}회 시도)`));
-                                        } else {
-                                            pendingTimer = setTimeout(tryOnce, attemptDelayMs);
-                                        }
-                                    }, STREAM_VALIDATION.attemptTimeoutMs);
-
-                                    try {
-                                        testWs = new WebSocket(streamUrl);
-                                        testWs.binaryType = 'arraybuffer';
-
-                                        testWs.onmessage = (evt) => {
-                                            const data = evt.data;
-                                            if (!(data instanceof ArrayBuffer)) return;
-                                            if (data.byteLength <= 24) return;
-
-                                            clearTimeout(attemptTimer);
-                                            try { testWs && testWs.close(); } catch (_) {}
-                                            testWs = null;
-                                            stopped = true;
-                                            clearPending();
-                                            resok();
-                                        };
-
-                                        testWs.onerror = () => {
-                                            clearTimeout(attemptTimer);
-                                            try { testWs && testWs.close(); } catch (_) {}
-                                            testWs = null;
-                                            if (attempts >= maxAttempts) {
-                                                stopped = true;
-                                                clearPending();
-                                                rej(new Error(`스트림 연결 오류 (${maxAttempts}회 시도)`));
-                                            } else {
-                                                pendingTimer = setTimeout(tryOnce, attemptDelayMs);
-                                            }
-                                        };
-                                    } catch (err) {
-                                        clearTimeout(attemptTimer);
-                                        try { testWs && testWs.close(); } catch (_) {}
-                                        testWs = null;
-                                        if (attempts >= maxAttempts) {
-                                            stopped = true;
-                                            clearPending();
-                                            rej(err as any);
-                                        } else {
-                                            pendingTimer = setTimeout(tryOnce, attemptDelayMs);
-                                        }
-                                    }
-                                };
-
-                                tryOnce();
-                            });
-                        };
-
-                        tryStreamWithRetries().then(() => {
-                            const newCam: CameraItem = {
-                                id: Math.random().toString(36).substring(2, 9),
-                                name: payload.name,
-                                url: payload.url,
-                                username: payload.username,
-                                password: payload.password,
-                                slot: res.slot,
-                                streamUrl: streamUrl
-                            };
-                            cameras.value.push(newCam);
-                            resolve(newCam);
-                        }).catch((err) => {
-                            reject(err);
-                        }).finally(() => {
-                            ws.close();
-                        });
+                    console.log('[Camera] Camera control response:', res);
+                    if (res.type === 'camera_connected' && res.streamUrl) {
+                        resolve({ streamUrl: res.streamUrl, slot: res.slot });
+                    } 
+                    else if (res.type === 'camera_connect_fail') {
+                        const reason = res.reason || '카메라 연결 실패 (서버에서 실패 응답)';
+                        reject(new Error(reason));
                     } else {
-                        reject(new Error('연결 실패 반환'));
+                        reject(new Error('카메라 연결 실패 (백엔드 에러 반환)'));
                     }
-                } catch (e) {
-                    reject(e);
+                } catch (err) {
+                    reject(new Error('서버 응답 데이터 파싱 실패'));
                 }
-                ws.close();
             };
 
             ws.onerror = (err) => {
-                clearTimeout(timer);
                 reject(err);
             };
         });
+    }
+
+    /**
+     * [메인 함수] 카메라를 최종 등록합니다.
+     * 외부(컴포넌트)에서는 이 함수만 호출하면 됩니다.
+     */
+    async function addCamera(payload: Omit<CameraItem, 'id' | 'slot' | 'streamUrl'>): Promise<CameraItem> {
+        // 1단계: 백엔드에 카메라 연결 요청하여 스트림 URL 받아오기
+        const { streamUrl, slot } = await requestCameraConnect(payload);
+
+        // 2단계: 스트림 검증은 서버(BroadcastManager)에서 수행합니다.
+        // 서버가 성공 응답을 보냈으므로 클라이언트에서는 추가 검증을 생략합니다.
+
+        // 3단계: 검증이 완료되면 스토어 상태(State)에 추가하기
+        const newCamera: CameraItem = {
+            id: Math.random().toString(36).substring(2, 9), // 랜덤 ID 생성
+            name: payload.name,
+            url: payload.url,
+            username: payload.username,
+            password: payload.password,
+            slot: slot,
+            streamUrl: streamUrl
+        };
+
+        cameras.value.push(newCamera);
+        return newCamera;
     }
 
     return { cameras, addCamera };

@@ -1,6 +1,7 @@
 <template>
-  <div v-if="topMessage" class="top-popup">{{ topMessage }}</div>
-  <div class="camera-management card">
+  <div class="camera-setting-root">
+    <div v-if="topMessage" class="top-popup">{{ topMessage }}</div>
+    <div class="camera-management card">
     <div class="header-zone">
       <h3 class="title">
         <span class="sparkle-icon">✦</span>
@@ -65,6 +66,7 @@
         </div>
       </div>
     </div>
+    </div>
   </div>
 </template>
 
@@ -95,12 +97,12 @@ const cameras = computed(() => cameraStore.cameras);
 const selectedCameraName = ref<string | null>('');
 
 const addCamera = async () => {
+  // 정보가 모두 입력되었는지 검사
   if (!newCamera.value.name.trim() || !newCamera.value.url.trim()) {
     alert('카메라 연결에 필요한 정보를 모두 입력해주세요.');
     return;
   }
   
-  // 중복 URL 체크
   // 중복 URL 체크
   if (cameras.value.some(c => c.url === newCamera.value.url.trim())) {
     topMessage.value = '이미 등록된 CAMERA URL입니다.';

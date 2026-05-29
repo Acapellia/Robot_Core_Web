@@ -17,7 +17,7 @@ export const useHubStore = defineStore('hub', () => {
   function connectWebSocket() {
     if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
 
-    const hostname = window.location.hostname || 'localhost';
+    const hostname = 'localhost';
     const wsUrl = `ws://${hostname}:8000/ws/control`;
 
     console.info('[hubStore] connectWebSocket() 시도 ->', wsUrl);

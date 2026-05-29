@@ -119,6 +119,8 @@ class BroadcastManager:
         
         # ⭐️ [카메라 스트림 전담 모듈 컴포지션 결합]
         self.camera_manager = CameraStreamManager()
+        # 서버 단에서 관리하는 카메라 스트림 재시도 설정 (기본값)
+        self.camera_retry_attempts = 3
         
         self.saved_server_entries: List[dict] = []
 
@@ -280,14 +282,20 @@ async def camera_control_endpoint(websocket: WebSocket):
     await websocket.accept()
     try:
         while True:
-            msg = await websocket.receive_text()
+            try:
+                msg = await websocket.receive_text()
+            except RuntimeError as re:
+                logger.warning(f"Camera control socket not connected or accept missing: {re}")
+                break
             try:
                 data = json.loads(msg)
             except Exception:
                 continue
 
-            action = data.get("type") or data.get("action")
-            if action in ("connect", "camera_connect"):
+            print(f"[Camera] 카메라 rtsp 스트림 연결 시도 : {data}")
+
+            action = data.get("type")
+            if action == "camera_connect":
                 url = data.get("url")
                 username = data.get("username")
                 password = data.get("password")
@@ -302,13 +310,18 @@ async def camera_control_endpoint(websocket: WebSocket):
                     if slot is None: slot = 0
 
                 try:
-                    # 신규 카메라 전담 모듈 가동 트리거
-                    await manager.camera_manager.start_rtsp_stream(slot, url, username, password)
-                    
+                    # 신규 카메라 전담 모듈 가동 트리거 및 최초 프레임 검증(서버 측)
+                    # 재시도 횟수는 BroadcastManager에서 관리하는 값을 사용합니다.
+                    await manager.camera_manager.start_rtsp_stream(
+                        slot, url, username, password,
+                        validate=True, max_attempts=manager.camera_retry_attempts
+                    )
+
                     ws_scheme = 'wss' if websocket.url.scheme == 'wss' else 'ws'
                     host = websocket.headers.get('host') or 'localhost:8000'
                     stream_url = f"{ws_scheme}://{host}/live?ch={slot}"
 
+                    print(f"[Camera] 카메라 스트림 연결 성공 (Slot {slot}) - 클라이언트에게 스트림 URL 전송: {stream_url} / host: {host} / scheme: {ws_scheme}")
                     await websocket.send_text(json.dumps({
                         "type": "camera_connected",
                         "slot": slot,
@@ -316,6 +329,14 @@ async def camera_control_endpoint(websocket: WebSocket):
                     }))
                 except Exception as e:
                     logger.error(f"카메라 모듈 가동 실패 (Slot {slot}): {e}")
+                    try:
+                        await websocket.send_text(json.dumps({
+                            "type": "camera_connect_fail",
+                            "slot": slot,
+                            "reason": str(e)
+                        }))
+                    except Exception:
+                        pass
     except WebSocketDisconnect:
         pass
 
@@ -323,6 +344,7 @@ async def camera_control_endpoint(websocket: WebSocket):
 @app.websocket("/live")
 async def live_endpoint(websocket: WebSocket):
     params = websocket.query_params
+    print(f"Live Endpoint 접속 시도 with params: {params}")
     ch = params.get('ch', '0')
     try:
         ch_idx = int(ch)

@@ -63,8 +63,10 @@ class CameraStreamManager:
         self.stream_tasks: Dict[int, asyncio.Task] = {}
         self.stream_procs: Dict[int, asyncio.subprocess.Process] = {}
         self.keep_alive_flags: Dict[int, bool] = {}  # 슬롯별 모니터링 활성화 플래그
+        # startup validators: used when caller wants to wait for first frame success
+        self.startup_validators: Dict[int, Dict] = {}
 
-    async def start_rtsp_stream(self, slot: int, url: str, username: str = None, password: str = None):
+    async def start_rtsp_stream(self, slot: int, url: str, username: str = None, password: str = None, validate: bool = False, max_attempts: int = 3):
         # 기존 모니터링 및 프로세스 자원 완벽히 청소
         self.keep_alive_flags[slot] = False
         await self.stop_rtsp_stream(slot)
@@ -72,11 +74,29 @@ class CameraStreamManager:
         if slot not in self.live_brokers:
             self.live_brokers[slot] = DownstreamChannelBroker(channel_name=f"Live-Slot-{slot}")
 
+        # If caller requested validation, create a startup validator future
+        if validate:
+            loop = asyncio.get_running_loop()
+            fut = loop.create_future()
+            self.startup_validators[slot] = {
+                'future': fut,
+                'attempts': 0,
+                'max_attempts': max_attempts,
+            }
+
         # 자가 치유 메인 루프 가동
         self.keep_alive_flags[slot] = True
         self.stream_tasks[slot] = asyncio.create_task(
             self._rtsp_supervisor_loop(slot, url, username, password)
         )
+
+        # If validating, wait for the validator future to resolve or reject
+        if validate:
+            try:
+                await self.startup_validators[slot]['future']
+            finally:
+                # cleanup validator entry regardless of outcome
+                self.startup_validators.pop(slot, None)
 
     async def _rtsp_supervisor_loop(self, slot: int, url: str, username: str, password: str):
         """FFmpeg가 다운되거나 멈추면 3초 대기 후 무한 재연결을 시도하는 감시 루프"""
@@ -90,6 +110,11 @@ class CameraStreamManager:
 
         while self.keep_alive_flags.get(slot, False):
             logger.info(f"[Slot {slot}] RTSP 스트림 프로세스를 시작합니다.")
+            # If we are validating startup, increment attempt count
+            validator = self.startup_validators.get(slot)
+            if validator is not None:
+                validator['attempts'] = validator.get('attempts', 0) + 1
+                logger.info(f"[Slot {slot}] startup validation attempt {validator['attempts']}/{validator['max_attempts']}")
             
             # 🌟 무조건 정상 작동하던 최초의 표준 명령어로 완벽하게 회귀
             cmd = [
@@ -174,8 +199,22 @@ class CameraStreamManager:
                             0, 0, len(image_payload), pts_sec, pts_usec
                         )
 
+                        # If caller is validating startup, resolve the validator future on first good frame
+                        validator = self.startup_validators.get(slot)
+                        if validator is not None:
+                            fut = validator.get('future')
+                            if fut and not fut.done():
+                                try:
+                                    fut.set_result(True)
+                                except Exception:
+                                    pass
+                                # remove validator; keep streaming running
+                                self.startup_validators.pop(slot, None)
+
                         await broker.broadcast_binary(header + image_payload)
 
+            except Exception as e:
+                logger.error(f"[Slot {slot}] 스트림 파싱 에러 발생: {e}")
             except Exception as e:
                 logger.error(f"[Slot {slot}] 스트림 파싱 에러 발생: {e}")
             finally:
@@ -186,7 +225,22 @@ class CameraStreamManager:
                     await proc.wait()
                 except Exception: 
                     pass
-                
+                # If we have a validator and exceeded max attempts, fail the validator and stop
+                validator = self.startup_validators.get(slot)
+                if validator is not None:
+                    attempts = validator.get('attempts', 0)
+                    max_attempts = validator.get('max_attempts', 0)
+                    if attempts >= max_attempts:
+                        fut = validator.get('future')
+                        if fut and not fut.done():
+                            try:
+                                fut.set_exception(Exception(f"스트림 검증 실패: {attempts}회 시도"))
+                            except Exception:
+                                pass
+                        # stop trying
+                        self.keep_alive_flags[slot] = False
+                        break
+
                 if self.keep_alive_flags.get(slot, False):
                     logger.info(f"[Slot {slot}] 3초 후 스트림 복구를 시도합니다...")
                     await asyncio.sleep(3.0)
