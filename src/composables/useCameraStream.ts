@@ -51,6 +51,17 @@ export function useCameraStream(slots: Ref<Array<any>>) {
     }
   }
 
+  function resumeMissingStreams() {
+    for (let i = 0; i < 6; i++) {
+      const cam = slots.value[i]
+      if (cam && cam.streamUrl) {
+        if (!ws_clients.value[i]) {
+          startJpgStream(i, cam.streamUrl)
+        }
+      }
+    }
+  }
+
   watch(slots, (newSlots) => {
     for (let i = 0; i < 6; i++) {
       const cam = newSlots[i]
@@ -64,10 +75,19 @@ export function useCameraStream(slots: Ref<Array<any>>) {
     }
   }, { immediate: true, deep: true })
 
+  const visibilityHandler = () => {
+    if (document.visibilityState === 'visible') {
+      resumeMissingStreams()
+    }
+  }
+
+  document.addEventListener('visibilitychange', visibilityHandler)
+
   onUnmounted(() => {
     for (let i = 0; i < 6; i++) {
       stopJpgStream(i)
     }
+    document.removeEventListener('visibilitychange', visibilityHandler)
   })
 
   return {
