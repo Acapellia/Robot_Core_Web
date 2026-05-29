@@ -73,6 +73,9 @@ let intervalId: any = null;
 // 애니메이션 처리를 대기하는 이벤트 큐
 const eventQueue: any[] = [];
 
+// eventStore에서 MAX_EVENT_ITEM_SIZE 가져오기
+import { MAX_EVENT_ITEM_SIZE } from '../../stores/eventStore';
+
 const startHydrationLoop = () => {
   if (intervalId) return;
 
@@ -81,8 +84,8 @@ const startHydrationLoop = () => {
     if (eventQueue.length > 0) {
       const nextEvent = eventQueue.shift();
       
-      // 화면에도 최대 5개만 유지되도록 설정 (오래된 것 제거)
-      if (virtualEvents.value.length >= 5) {
+      // 화면에도 최대 n개만 유지되도록 설정 (오래된 것 제거)
+      if (virtualEvents.value.length >= MAX_EVENT_ITEM_SIZE) {
         virtualEvents.value.shift(); // 가장 오래된 첫 번째 아이템 삭제
       }
       

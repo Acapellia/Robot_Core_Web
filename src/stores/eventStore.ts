@@ -5,7 +5,7 @@ export type EventType = 'INFO' | 'ALERT' | 'SYSTEM' | 'WARNING';
 
 export interface RobotEvent {
   event_id: number;
-  robot_Id: string;
+  robot_id: string;
   type: EventType;
   time: string;
   message: string;
@@ -14,7 +14,7 @@ export interface RobotEvent {
 const INITIAL_EVENTS: RobotEvent[] = [
 ];
 
-const MAX_EVENT_ITEM_SIZE = 10;
+export const MAX_EVENT_ITEM_SIZE = 10;
 
 export const useEventStore = defineStore('event', () => {
   const events = ref<RobotEvent[]>(INITIAL_EVENTS);
