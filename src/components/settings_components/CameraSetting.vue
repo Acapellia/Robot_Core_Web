@@ -1,6 +1,5 @@
 <template>
   <div class="camera-setting-root">
-    <div v-if="topMessage" class="top-popup">{{ topMessage }}</div>
     <div class="camera-management card">
     <div class="header-zone">
       <h3 class="title">
@@ -90,7 +89,7 @@ const newCamera = ref<CameraForm>({
   password: '',
 });
 
-const topMessage = ref<string | null>(null);
+// 알림은 브라우저 기본 alert()를 사용합니다.
 
 // 코파일럿의 복잡한 찌꺼기를 지우고 store의 반응형 배열을 다이렉트로 연결
 const cameras = computed(() => cameraStore.cameras);
@@ -105,8 +104,7 @@ const addCamera = async () => {
   
   // 중복 URL 체크
   if (cameras.value.some(c => c.url === newCamera.value.url.trim())) {
-    topMessage.value = '이미 등록된 CAMERA URL입니다.';
-    setTimeout(() => { topMessage.value = null; }, 5000);
+    alert('이미 등록된 CAMERA URL입니다.');
     return;
   }
 
@@ -129,9 +127,7 @@ const addCamera = async () => {
   } catch (e) {
     console.error(e);
     const message = e instanceof Error ? e.message : '카메라 등록 중 알 수 없는 오류가 발생했습니다.';
-    topMessage.value = `카메라 등록 실패: ${message}`;
-    // 5초 후 자동으로 사라지게 함
-    setTimeout(() => { topMessage.value = null; }, 5000);
+    alert(`카메라 등록 실패: ${message}`);
   }
 };
 
@@ -157,19 +153,6 @@ const selectCamera = (name: string) => {
   flex-direction: column;  
 }
 
-.top-popup {
-  position: fixed;
-  top: 16px;
-  right: 16px;
-  z-index: 9999;
-  background: rgba(27,37,89,0.95);
-  color: #fff;
-  padding: 10px 14px;
-  border-radius: 8px;
-  box-shadow: 0 8px 20px rgba(13,27,34,0.2);
-  font-weight: 700;
-  font-size: 13px;
-}
 
 .header-zone {
   display: flex;
