@@ -313,15 +313,11 @@ async def camera_control_endpoint(websocket: WebSocket):
                 try:
                     # 신규 카메라 전담 모듈 가동 트리거 및 최초 프레임 검증(서버 측)
                     # 재시도 횟수는 BroadcastManager에서 관리하는 값을 사용합니다.
-                    # 서버에서 즉시 스트림 시작만 트리거하고 검증은 수행하지 않습니다.
-                    await manager.camera_manager.start_rtsp_stream(
-                        slot, url, username, password
-                    )
+                    await manager.camera_manager.start_rtsp_stream(slot, url, username, password)
 
-                    host = websocket.headers.get('host') or 'localhost:8000'
-                    stream_url = f"ws://{host}/ws/live?ch={slot}"
+                    stream_url = f"ws://localhost:8000/ws/live?ch={slot}"
 
-                    print(f"[Camera] 카메라 스트림 연결 성공 (Slot {slot}) - 클라이언트에게 스트림 URL 전송: {stream_url} / host: {host}")
+                    print(f"[Camera] 카메라 스트림 연결 성공 (Slot {slot}) - 클라이언트에게 스트림 URL 전송: {stream_url}")
                     await websocket.send_text(json.dumps({
                         "type": "camera_connected",
                         "slot": slot,
@@ -351,12 +347,9 @@ async def live_endpoint(websocket: WebSocket):
     except Exception:
         ch_idx = 0
 
-    # 카메라 스트리머 매니저 내부의 브로커 풀에서 가져와 소켓 결합
-    if ch_idx not in manager.camera_manager.live_brokers:
-        manager.camera_manager.live_brokers[ch_idx] = DownstreamChannelBroker(channel_name=f"Live-Slot-{ch_idx}")
-
     broker = manager.camera_manager.live_brokers[ch_idx]
     await broker.connect(websocket)
+
     try:
         while True:
             await websocket.receive_text()
