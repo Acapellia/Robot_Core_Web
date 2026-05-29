@@ -8,7 +8,7 @@ export function useCameraStream(slots: Ref<Array<any>>) {
     stopJpgStream(idx)
 
     try {
-      const ws = new WebSocket(streamUrl)
+      const ws = new WebSocket(streamUrl, "camera-stream")
       ws.binaryType = 'arraybuffer'
       ws_clients.value[idx] = ws
 
@@ -18,12 +18,14 @@ export function useCameraStream(slots: Ref<Array<any>>) {
         if (buffer.byteLength <= 24) return
 
         const imagePayload = buffer.slice(24)
-        const blob = new Blob([imagePayload], { type: 'image/jpeg' })
+        const blob = new Blob([imagePayload], { type: 'image/jpeg' }) // 이미지 파일 객체로 변환
 
+        // 메모리 누수를 막기 위해 이전 이미지는 지우기 (청소)
         if (blob_urls.value[idx]) {
           URL.revokeObjectURL(blob_urls.value[idx]!)
         }
 
+        // 고유한 이미지 주소(Blob URL)를 생성해서 화면에 전달
         blob_urls.value[idx] = URL.createObjectURL(blob)
       }
 

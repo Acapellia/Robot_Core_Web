@@ -89,9 +89,6 @@ const newCamera = ref<CameraForm>({
   password: '',
 });
 
-// 알림은 브라우저 기본 alert()를 사용합니다.
-
-// 코파일럿의 복잡한 찌꺼기를 지우고 store의 반응형 배열을 다이렉트로 연결
 const cameras = computed(() => cameraStore.cameras);
 const selectedCameraName = ref<string | null>('');
 
@@ -109,7 +106,6 @@ const addCamera = async () => {
   }
 
   try {
-    // REST API를 쓰지 않고 개편된 스토어의 순수 웹소켓 액션 호출
     const created = await cameraStore.addCamera({
       name: newCamera.value.name.trim(),
       url: newCamera.value.url.trim(),
