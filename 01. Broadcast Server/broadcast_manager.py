@@ -13,6 +13,8 @@ from fastapi.responses import FileResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
+from src.utils.message_utils import MessageUtils
+
 # 시스템 표준 로깅 설정
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("BroadcastSystem")
@@ -40,6 +42,11 @@ from src.UpstreamManager.connection_manager import (
 
 # ⭐️ [새로 만든 카메라 전담 모듈 가져오기]
 from src.CameraManager.rtsp_streamer import CameraStreamManager
+
+# =====================================================================
+# Global Variables
+# =====================================================================
+ROBOT_CORE_WEB_SYSTEM_ID = 500  # 시스템 ID 상수 정의 (예시값)
 
 
 # =====================================================================
@@ -257,6 +264,10 @@ async def control_endpoint(websocket: WebSocket):
             msg = await websocket.receive_text()
             data = json.loads(msg)
             if data.get('type') == 'robot_hub_connect':
+                handshake_header = MessageUtils.make_header(type_="handshake", protocol_source="ui", protocol_category="request")
+                handshake_payload = {"systemid": ROBOT_CORE_WEB_SYSTEM_ID }
+                handshake_data = { "header": handshake_header, "payload": handshake_payload }
+                data['handshake'] = handshake_data
                 conn = build_hub_connection(data, manager)
                 if conn is not None:
                     task = asyncio.create_task(conn.run_loop())

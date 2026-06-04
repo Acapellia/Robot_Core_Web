@@ -131,10 +131,10 @@ def build_va_connection(data: dict, manager) -> Optional[HttpAuthWebSocketConnec
         
     login_payload = {"id": id_val, "pw": pw_val, "keepAliveTimeOut": 900}
 
-    ws_template = data.get("ws_uri_template") or f"ws://{ip}:{port}/?api-key={{token}}&ch=0,1,2,3&hubMeta"
+    ws_template = data.get("ws_uri_template") or f"ws://{ip}:{port}/?api-key={{token}}&ch=0,1,2,3&frmMeta"
 
     def ws_factory(token, template=ws_template):
-        parts = [f"api-key={quote_plus(str(token))}", "ch=0,1,2,3", "hubMeta"]
+        parts = [f"api-key={quote_plus(str(token))}", "ch=0,1,2,3", "frmMeta"]
         query = "&".join(parts)
         if "{token}" in template:
             return template.replace("{token}", quote_plus(str(token)))
