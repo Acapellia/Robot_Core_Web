@@ -30,6 +30,10 @@ export function useCameraStream(slots: Ref<Array<any>>) {
       }
 
       ws.onclose = () => {
+        // 예기치 않은 끊김 시에도 참조를 정리해서 재연결 조건이 맞도록 함
+        if (ws_clients.value[idx] === ws) {
+          ws_clients.value[idx] = null
+        }
         setTimeout(() => {
           const currentCam = slots.value[idx]
           if (currentCam && currentCam.streamUrl && ws_clients.value[idx] === null) {
@@ -57,7 +61,9 @@ export function useCameraStream(slots: Ref<Array<any>>) {
     for (let i = 0; i < 6; i++) {
       const cam = slots.value[i]
       if (cam && cam.streamUrl) {
-        if (!ws_clients.value[i]) {
+        const ws = ws_clients.value[i]
+        const isAlive = ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)
+        if (!isAlive) {
           startJpgStream(i, cam.streamUrl)
         }
       }
