@@ -190,8 +190,8 @@ class CameraStreamManager:
             "ffmpeg",
             "-rtsp_transport",
             "tcp",
-            "-timeout",
-            "5",  # TCP 모드에서 접속 및 세션 유지 통합 타임아웃 (5초)
+            # "-timeout",
+            # "5",  # TCP 모드에서 접속 및 세션 유지 통합 타임아웃 (5초)
             "-i",
             input_url,
             "-an",

@@ -1,26 +1,26 @@
 <template>
   <div class="top-grid">
-    <div 
-      v-for="(cam, idx) in slots" 
-      :key="idx" 
-      class="card" 
+    <div
+      v-for="(cam, idx) in slots"
+      :key="idx"
+      class="card"
       :class="{ 'has-cam': cam }"
       @dblclick="cam ? openPopup(idx) : null"
     >
       <div class="tile-header">{{ cam ? cam.name : `Camera ${idx + 1}` }}</div>
       <div class="tile-body">
-        <img v-if="cam && blob_urls[idx]" :src="blob_urls[idx]!" class="live-img" />
+        <canvas v-if="cam" :ref="(el) => setCanvas(idx, el as HTMLCanvasElement | null)" class="live-canvas" />
         <div v-else class="placeholder">No stream</div>
       </div>
     </div>
 
     <Teleport to="body">
       <div v-if="selectedIdx !== null" class="modal-overlay" @click.self="closePopup">
-        
+
         <div class="modal-premium-frame">
-          
+
           <div class="frame-unified-container">
-            
+
             <div class="frame-nested-title">
               <span class="pulse-dot"></span>
               <span class="title-text">{{ slots[selectedIdx]?.name || `Camera ${selectedIdx + 1}` }}</span>
@@ -31,10 +31,10 @@
             </button>
 
             <div class="premium-screen-box">
-              <img 
-                v-if="blob_urls[selectedIdx]" 
-                :src="blob_urls[selectedIdx]!" 
-                class="modal-live-img" 
+              <canvas
+                v-if="slots[selectedIdx]"
+                :ref="handleModalCanvasRef"
+                class="modal-live-canvas"
               />
               <div v-else class="modal-placeholder">No stream</div>
             </div>
@@ -64,8 +64,22 @@ const slots = computed(() => {
   return out
 })
 
-const { blob_urls } = useCameraStream(slots)
+const { setCanvas, setModalCanvas } = useCameraStream(slots)
 const selectedIdx = ref<number | null>(null)
+
+// 모달 캔버스 ref 콜백 — mount 시점에 selectedIdx가 유효하므로 캡처,
+// unmount 시점(selectedIdx가 이미 null)엔 _lastModalIdx로 해제
+let _lastModalIdx: number | null = null
+function handleModalCanvasRef(el: unknown) {
+  const canvas = el as HTMLCanvasElement | null
+  if (canvas) {
+    _lastModalIdx = selectedIdx.value
+    setModalCanvas(selectedIdx.value, canvas)
+  } else {
+    setModalCanvas(null, null)
+    _lastModalIdx = null
+  }
+}
 
 function openPopup(idx: number) {
   selectedIdx.value = idx
@@ -94,7 +108,7 @@ function closePopup() {
 
 .tile-header { position: absolute; top: 8px; left: 8px; z-index: 3; background: rgba(255,255,255,0.9); padding: 4px 8px; border-radius: 8px; font-weight:700; color:#233; font-size:13px }
 .tile-body { position: absolute; inset: 0; padding-top: 36px; background: #000 }
-.live-img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block; z-index:0 }
+.live-canvas { position:absolute; inset:0; width:100%; height:100%; display:block; z-index:0 }
 .placeholder { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:linear-gradient(180deg,#000,#0b0b0b); background-color:#000; color:#9aa; font-weight:600; z-index:1 }
 
 
@@ -123,9 +137,9 @@ function closePopup() {
   padding: 7px;
   background: linear-gradient(135deg, #d3c4fc 0%, #badaff 50%, #eadaff 100%);
   border-radius: 24px;
-  box-shadow: 
-    0 4px 24px rgba(153, 129, 235, 0.15), 
-    0 24px 64px rgba(33, 44, 61, 0.28); 
+  box-shadow:
+    0 4px 24px rgba(153, 129, 235, 0.15),
+    0 24px 64px rgba(33, 44, 61, 0.28);
   display: flex;
 }
 
@@ -133,9 +147,9 @@ function closePopup() {
 .frame-unified-container {
   flex: 1;
   position: relative;
-  padding: 16px; 
+  padding: 16px;
   padding-top: 56px; /* 이름표/단추 수용 공간 고수 */
-  background: rgba(255, 255, 255, 0.94); 
+  background: rgba(255, 255, 255, 0.94);
   border-radius: 22px;
   display: flex;
   flex-direction: column;
@@ -147,7 +161,7 @@ function closePopup() {
   top: 15px;
   left: 18px;
   z-index: 5;
-  background: #eaf4ff; 
+  background: #eaf4ff;
   border: 1px solid #b8daff;
   padding: 4px 12px;
   border-radius: 8px;
@@ -164,7 +178,7 @@ function closePopup() {
   top: 15px;
   right: 18px;
   z-index: 5;
-  background: #f3f0ff; 
+  background: #f3f0ff;
   color: #6a57b7;
   border: 1px solid #ded5ff;
   padding: 4px 14px;
@@ -183,26 +197,27 @@ function closePopup() {
 /* ── 🌟 [중앙 비디오 구역] 디테일 경계선 주입 ── */
 .premium-screen-box {
   flex: 1;
-  background: #0b0f15; 
+  background: #0b0f15;
   border-radius: 10px;
   overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
-  
+
   /* 🎨 [변경] 투명도 없는 맑은 밀크 파란색 실선으로 두께를 5px까지 키워 확실하게 선을 긋습니다 */
-  border: 5px solid #b2d5ff; 
-  
+  border: 5px solid #b2d5ff;
+
   /* 🎨 [추가] 테두리 선 바깥쪽으로 부드러운 파스텔 블루 후광을 주어 선이 더욱 선명하게 돋보이도록 처리 */
-  box-shadow: 
+  box-shadow:
     inset 0 2px 8px rgba(0, 0, 0, 0.2),
-    0 0 12px rgba(178, 213, 255, 0.4); 
+    0 0 12px rgba(178, 213, 255, 0.4);
 }
 
-.modal-live-img {
+/* 컨테이너를 꽉 채우고, JS에서 비율 유지 스케일링으로 그림 */
+.modal-live-canvas {
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  display: block;
 }
 
 .modal-placeholder { color: #414f64; font-size: 13px; font-weight: 600; }
