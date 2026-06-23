@@ -11,11 +11,16 @@ from PIL import Image
 
 logger = logging.getLogger("BroadcastSystem.CameraManager")
 
+# FFmpeg stderr에서 중요 키워드를 발견하면 WARNING 이상으로 올려서 출력
+_FFMPEG_WARN_KEYWORDS = ("error", "failed", "invalid", "corrupt", "drop", "timeout", "refused", "connection")
+_FFMPEG_ERROR_KEYWORDS = ("no route", "connection refused", "no such file", "permission denied")
+
 class DownstreamChannelBroker:
     """각 슬롯(채널)별 실시간 바이너리 프레임 브로드캐스터"""
     def __init__(self, channel_name: str):
         self.channel_name = channel_name
         self.active_connections: Set[WebSocket] = set()
+        self._broadcast_fail_count = 0
 
     async def connect(self, websocket: WebSocket):
         req_proto = websocket.headers.get('sec-websocket-protocol')
@@ -28,30 +33,52 @@ class DownstreamChannelBroker:
             except Exception:
                 pass
         try:
-            if chosen: 
+            if chosen:
                 await websocket.accept(subprotocol=chosen)
-            else: 
+            else:
                 raise RuntimeError(f"[Camera Stream Connect] 서브 프로토콜 불일치")
         except Exception:
             raise RuntimeError(f"[Camera Stream Connect] 카메라 스트림 채널 연결 실패")
-        
+
         self.active_connections.add(websocket)
+        client = getattr(websocket, 'client', None)
+        client_str = f"{client[0]}:{client[1]}" if client else "unknown"
+        logger.info(
+            f"[{self.channel_name}] 웹 클라이언트 접속 from {client_str} "
+            f"(현재 접속자: {len(self.active_connections)}명)"
+        )
 
     def disconnect(self, websocket: WebSocket):
         if websocket in self.active_connections:
             self.active_connections.remove(websocket)
+            client = getattr(websocket, 'client', None)
+            client_str = f"{client[0]}:{client[1]}" if client else "unknown"
+            logger.info(
+                f"[{self.channel_name}] 웹 클라이언트 접속 종료 from {client_str} "
+                f"(현재 접속자: {len(self.active_connections)}명)"
+            )
 
     async def broadcast_binary(self, data: bytes):
         if not self.active_connections:
             return
-        disconnected_clients = set()
-        for connection in list(self.active_connections):
-            try:
-                await connection.send_bytes(data)
-            except Exception:
-                disconnected_clients.add(connection)
-        for client in disconnected_clients:
-            self.disconnect(client)
+        connections = list(self.active_connections)
+
+        # 느린 클라이언트 하나가 전체 루프를 블로킹하지 않도록 병렬 전송
+        results = await asyncio.gather(
+            *[conn.send_bytes(data) for conn in connections],
+            return_exceptions=True
+        )
+
+        for conn, result in zip(connections, results):
+            if isinstance(result, Exception):
+                self._broadcast_fail_count += 1
+                client = getattr(conn, 'client', None)
+                client_str = f"{client[0]}:{client[1]}" if client else "unknown"
+                logger.warning(
+                    f"[{self.channel_name}] 클라이언트 {client_str} 전송 실패 "
+                    f"(총 누적 실패: {self._broadcast_fail_count}회): {result}"
+                )
+                self.disconnect(conn)
 
 
 class CameraStreamManager:
@@ -62,18 +89,34 @@ class CameraStreamManager:
         self.stream_tasks: Dict[int, asyncio.Task] = {}
         self.stream_procs: Dict[int, asyncio.subprocess.Process] = {}
         self.keep_alive_flags: Dict[int, bool] = {}  # 슬롯별 모니터링 활성화 플래그
+        # 진단용 통계 카운터 (슬롯별)
+        self._frame_counts: Dict[int, int] = {}
+        self._broadcast_counts: Dict[int, int] = {}
+        self._reconnect_counts: Dict[int, int] = {}
+        self._last_stat_time: Dict[int, float] = {}
+        self._last_frame_time: Dict[int, float] = {}
 
     async def start_rtsp_stream(
         self, slot: int, url: str, username: str = None, password: str = None
     ):
         """[외부 호출용] 특정 슬롯(채널)의 RTSP 스트리밍 및 감시 루프를 시작합니다."""
-        self.keep_alive_flags[slot] = False
+        # stop_rtsp_stream 안에서 flag를 끄므로 여기서 미리 끄지 않는다.
+        # 미리 끄면 기존 supervisor의 finally 블록이 flag=False를 보고 재시작을 포기하는 race condition 발생.
         await self.stop_rtsp_stream(slot)
 
         if slot not in self.live_brokers:
             self.live_brokers[slot] = DownstreamChannelBroker(
                 channel_name=f"Live-Slot-{slot}"
             )
+
+        # 진단 카운터 초기화
+        self._frame_counts[slot] = 0
+        self._broadcast_counts[slot] = 0
+        self._reconnect_counts[slot] = 0
+        self._last_stat_time[slot] = time.time()
+        self._last_frame_time[slot] = time.time()
+
+        logger.info(f"[Slot {slot}] RTSP 스트림 시작 요청 - URL: {url}")
 
         # 자가 치유 감시 루프 백그라운드 가동
         self.keep_alive_flags[slot] = True
@@ -89,11 +132,17 @@ class CameraStreamManager:
         broker = self.live_brokers[slot]
 
         while self.keep_alive_flags.get(slot, False):
-            logger.info(f"[Slot {slot}] RTSP 스트림 프로세스를 시작합니다.")
+            attempt = self._reconnect_counts.get(slot, 0) + 1
+            self._reconnect_counts[slot] = attempt
+            logger.info(
+                f"[Slot {slot}] RTSP 스트림 프로세스를 시작합니다. "
+                f"(재연결 횟수: {attempt}회, 접속 클라이언트: {len(broker.active_connections)}명)"
+            )
 
             # 1. FFmpeg 프로세스 실행
             proc = await self._start_ffmpeg_process(input_url)
             self.stream_procs[slot] = proc
+            logger.info(f"[Slot {slot}] FFmpeg 프로세스 시작됨 (PID: {proc.pid})")
 
             # 2. FFmpeg 에러/로그 실시간 수집기 가동
             stderr_task = asyncio.create_task(
@@ -101,20 +150,26 @@ class CameraStreamManager:
             )
 
             # 3. 데이터 수신 및 브로드캐스트 처리
+            loop_start = time.time()
             try:
                 await self._stream_processing_loop(slot, proc, broker)
             except Exception as e:
-                logger.error(f"[Slot {slot}] 스트림 처리 중 에러 발생: {e}")
+                logger.error(f"[Slot {slot}] 스트림 처리 중 에러 발생: {e}", exc_info=True)
             finally:
+                elapsed = time.time() - loop_start
+                frames = self._frame_counts.get(slot, 0)
+                logger.warning(
+                    f"[Slot {slot}] 스트림 루프 종료 - "
+                    f"운영 시간: {elapsed:.1f}초, 수신 프레임: {frames}장, "
+                    f"FFmpeg PID: {proc.pid}, returncode: {proc.returncode}"
+                )
                 # 4. 프로세스 종료 및 자원 정리
                 stderr_task.cancel()
                 await self._kill_process(proc)
 
                 # 복구 대기
                 if self.keep_alive_flags.get(slot, False):
-                    logger.info(
-                        f"[Slot {slot}] 3초 후 스트림 복구를 시도합니다..."
-                    )
+                    logger.info(f"[Slot {slot}] 3초 후 스트림 복구를 시도합니다...")
                     await asyncio.sleep(3.0)
 
     def _build_auth_url(
@@ -135,6 +190,8 @@ class CameraStreamManager:
             "ffmpeg",
             "-rtsp_transport",
             "tcp",
+            "-timeout",
+            "5",  # TCP 모드에서 접속 및 세션 유지 통합 타임아웃 (5초)
             "-i",
             input_url,
             "-an",
@@ -159,11 +216,20 @@ class CameraStreamManager:
                 line = await proc.stderr.readline()
                 if not line:
                     break
-                logger.debug(
-                    f"[FFmpeg 로그 Slot {slot}]: {line.decode('utf-8', errors='ignore').strip()}"
-                )
-        except Exception:
+                text = line.decode('utf-8', errors='ignore').strip()
+                if not text:
+                    continue
+                text_lower = text.lower()
+                if any(kw in text_lower for kw in _FFMPEG_ERROR_KEYWORDS):
+                    logger.error(f"[FFmpeg Slot {slot}] {text}")
+                elif any(kw in text_lower for kw in _FFMPEG_WARN_KEYWORDS):
+                    logger.warning(f"[FFmpeg Slot {slot}] {text}")
+                else:
+                    logger.debug(f"[FFmpeg Slot {slot}] {text}")
+        except asyncio.CancelledError:
             pass
+        except Exception as e:
+            logger.debug(f"[FFmpeg Slot {slot}] stderr 수집 종료: {e}")
 
     async def _stream_processing_loop(
         self,
@@ -173,6 +239,10 @@ class CameraStreamManager:
     ):
         """FFmpeg 출력에서 바이트 데이터를 읽어 프레임을 조립하고 전송합니다."""
         buffer = bytearray()
+        self._frame_counts[slot] = 0
+        self._last_stat_time[slot] = time.time()
+        self._last_frame_time[slot] = time.time()
+        stat_interval = 10.0  # 10초마다 수신 통계 출력
 
         while self.keep_alive_flags.get(slot, False):
             try:
@@ -181,20 +251,39 @@ class CameraStreamManager:
                     proc.stdout.read(32768), timeout=7.0
                 )
             except asyncio.TimeoutError:
+                idle = time.time() - self._last_frame_time.get(slot, time.time())
                 logger.warning(
-                    f"[Slot {slot}] 데이터 수신 타임아웃! FFmpeg 프로세스를 재시작합니다."
+                    f"[Slot {slot}] 데이터 수신 타임아웃! "
+                    f"마지막 프레임으로부터 {idle:.1f}초 경과. FFmpeg 재시작합니다."
                 )
                 break
 
             if not chunk:
                 logger.warning(
-                    f"[Slot {slot}] FFmpeg가 스트림 출력을 중단했습니다."
+                    f"[Slot {slot}] FFmpeg가 스트림 출력을 중단했습니다 (EOF). "
+                    f"총 수신 프레임: {self._frame_counts.get(slot, 0)}장"
                 )
                 break
 
             buffer.extend(chunk)
             # 버퍼에서 온전한 JPG 이미지를 찾아서 추출 및 전송
             await self._parse_and_broadcast_frames(slot, buffer, broker)
+
+            # 주기적 통계 로그
+            now = time.time()
+            elapsed = now - self._last_stat_time.get(slot, now)
+            if elapsed >= stat_interval:
+                frames = self._frame_counts.get(slot, 0)
+                fps = frames / elapsed if elapsed > 0 else 0
+                clients = len(broker.active_connections)
+                logger.info(
+                    f"[Slot {slot}] [통계] FPS: {fps:.1f}, "
+                    f"수신 프레임(구간): {frames}장, "
+                    f"접속 클라이언트: {clients}명, "
+                    f"버퍼 크기: {len(buffer)}bytes"
+                )
+                self._frame_counts[slot] = 0
+                self._last_stat_time[slot] = now
 
     async def _parse_and_broadcast_frames(
         self, slot: int, buffer: bytearray, broker: DownstreamChannelBroker
@@ -207,10 +296,12 @@ class CameraStreamManager:
             # JPEG 시작 지점 획득
             start_idx = buffer.find(b"\xFF\xD8")
             if start_idx == -1:
+                logger.debug(f"[Slot {slot}] 버퍼에서 JPEG 시작 마커를 찾지 못해 버퍼를 초기화합니다. (버퍼 크기: {len(buffer)}bytes)")
                 buffer.clear()
                 break
 
             if start_idx > 0:
+                logger.debug(f"[Slot {slot}] JPEG 시작 전 불필요 데이터 {start_idx}bytes 제거")
                 del buffer[:start_idx]
                 start_idx = 0
 
@@ -224,8 +315,11 @@ class CameraStreamManager:
             image_payload = bytes(buffer[:jpeg_len])
             del buffer[:jpeg_len]
 
+            self._frame_counts[slot] = self._frame_counts.get(slot, 0) + 1
+            self._last_frame_time[slot] = time.time()
+
             # (선택) 디버깅용 실시간 스냅샷 저장
-            self._save_debug_snapshot(image_payload)
+            # self._save_debug_snapshot(image_payload)
 
             # 웹소켓 통신 규격용 24바이트 헤더 조립
             header = self._create_protocol_header(len(image_payload))

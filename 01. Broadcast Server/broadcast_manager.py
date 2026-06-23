@@ -352,15 +352,27 @@ async def camera_control_endpoint(websocket: WebSocket):
 @app.websocket("/ws/live")
 async def live_endpoint(websocket: WebSocket):
     params = websocket.query_params
-    print(f"Live Endpoint 접속 시도 with params: {params}")
     ch = params.get('ch', '0')
     try:
         ch_idx = int(ch)
     except Exception:
         ch_idx = 0
 
+    client = getattr(websocket, 'client', None)
+    client_str = f"{client[0]}:{client[1]}" if client else "unknown"
+    logger.info(f"[Live] Slot {ch_idx} 접속 시도 from {client_str}")
+
+    if ch_idx not in manager.camera_manager.live_brokers:
+        logger.warning(f"[Live] Slot {ch_idx}에 대한 브로커가 없습니다. 아직 카메라가 연결되지 않은 상태입니다.")
+        await websocket.close(code=1011, reason="No active camera on this slot")
+        return
+
     broker = manager.camera_manager.live_brokers[ch_idx]
-    await broker.connect(websocket)
+    try:
+        await broker.connect(websocket)
+    except RuntimeError as e:
+        logger.error(f"[Live] Slot {ch_idx} 브로커 연결 실패: {e}")
+        return
 
     try:
         while True:
@@ -368,7 +380,7 @@ async def live_endpoint(websocket: WebSocket):
     except WebSocketDisconnect:
         broker.disconnect(websocket)
     except Exception as e:
-        logger.error(f"Live 바이너리 엔드포인트 통신 장애 (Slot {ch_idx}): {e}")
+        logger.error(f"[Live] Slot {ch_idx} 통신 장애 from {client_str}: {e}")
         broker.disconnect(websocket)
 
 
