@@ -89,6 +89,7 @@ class MessageParser:
     PARSER_REGISTRY = {
         "robot_list_update": {"channel": "telemetry", "parser": _parse_robot_list.__func__},
         "robot_state_update": {"channel": "telemetry", "parser": _parse_robot_states.__func__},
+        "robotstate": {"channel": "telemetry", "parser": _parse_robot_states.__func__},
         "robot_event_update": {"channel": "events", "parser": _parse_robot_events.__func__},
         "event_detected": {"channel": "events", "parser": _parse_va_meta.__func__},
         "event_finished": {"channel": "events", "parser": _parse_va_meta.__func__},

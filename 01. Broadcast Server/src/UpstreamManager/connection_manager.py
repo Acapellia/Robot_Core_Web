@@ -99,7 +99,7 @@ def build_hub_connection(data: dict, manager) -> Optional[PureWebSocketConnectio
 
     conn = PureWebSocketConnection(
         ws_uri=f"ws://{ip}:{port}/",
-        handshake_payload=data.get("handshake"),
+        handshake_payload=data.get("handshake"), #[HUB] 실제 허브는 해당 내용 필요
         name=name,
         inbound_queue=manager.raw_message_queue,
         outbound_queue=None,
@@ -131,10 +131,10 @@ def build_va_connection(data: dict, manager) -> Optional[HttpAuthWebSocketConnec
         
     login_payload = {"id": id_val, "pw": pw_val, "keepAliveTimeOut": 900}
 
-    ws_template = data.get("ws_uri_template") or f"ws://{ip}:{port}/?api-key={{token}}&ch=0,1,2,3&frmMeta"
+    ws_template = data.get("ws_uri_template") or f"ws://{ip}:{port}/?api-key={{token}}&ch=0,1,2,3&hubMeta"
 
     def ws_factory(token, template=ws_template):
-        parts = [f"api-key={quote_plus(str(token))}", "ch=0,1,2,3", "frmMeta"]
+        parts = [f"api-key={quote_plus(str(token))}", "ch=0,1,2,3", "hubMeta"]
         query = "&".join(parts)
         if "{token}" in template:
             return template.replace("{token}", quote_plus(str(token)))

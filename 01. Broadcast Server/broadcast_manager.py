@@ -264,10 +264,11 @@ async def control_endpoint(websocket: WebSocket):
             msg = await websocket.receive_text()
             data = json.loads(msg)
             if data.get('type') == 'robot_hub_connect':
-                handshake_header = MessageUtils.make_header(type_="handshake", protocol_source="ui", protocol_category="request")
+                handshake_header = MessageUtils.make_header(type_="handshake", protocol_source="UI", protocol_category="REQUEST")
                 handshake_payload = {"systemid": ROBOT_CORE_WEB_SYSTEM_ID }
                 handshake_data = { "header": handshake_header, "payload": handshake_payload }
                 data['handshake'] = handshake_data
+                print(f"[Control] 로봇 허브 연결 시도: {data}")
                 conn = build_hub_connection(data, manager)
                 if conn is not None:
                     task = asyncio.create_task(conn.run_loop())

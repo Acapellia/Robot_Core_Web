@@ -56,7 +56,7 @@ class MessageUtils:
             "version": version,
             "type": type_,
             "messageid": mid,
-            "messageID": mid,          # 상단 주석 명세에 있던 camelCase 호환성 유지
+            # "messageID": mid,          # 상단 주석 명세에 있던 camelCase 호환성 유지
             "sessionid": final_session_id,
             "timestamp": ts,
             "priority": priority,
