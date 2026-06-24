@@ -3,3 +3,9 @@ dist/
 .DS_Store
 
 */.venv/*
+
+# Python 캐시 파일 및 컴파일된 바이트코드 무시
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
