@@ -3,6 +3,7 @@ import time
 import random
 import uuid
 import logging
+import base64
 from datetime import datetime
 from typing import Optional
 
@@ -84,6 +85,40 @@ class MessageParser:
             ]
         }
 
+    @staticmethod
+    def _parse_all_map_data(header: dict, payload: dict) -> dict:
+        maps = []
+        for m in payload.get("maps", []):
+            raw_data = m.get("data", "")
+            try:
+                decoded_pcd = base64.b64decode(raw_data).decode("utf-8", errors="replace")
+            except Exception as e:
+                logger.error(f"맵({m.get('filename')}) Base64 디코딩 실패: {e}")
+                decoded_pcd = ""
+
+            map_info = {
+                "filename": m.get("filename"),
+                "frame_id": m.get("frame_id"),
+                "encoding": m.get("encoding"),
+                "datasize": m.get("datasize"),
+                "pcd_data": decoded_pcd,
+                "graph_nodes": m.get("graphnodes", []),
+                "graph_edges": m.get("graphedges", []),
+                "waypoints": m.get("waypoints", []),
+            }
+            maps.append(map_info)
+
+            print(f"[ALLMAPDATA] '{map_info['filename']}' 디코딩된 PCD 내용:\n{decoded_pcd}")
+
+        parsed = {
+            "type": "ALL_MAP_DATA_UPDATE",
+            "number_of_maps": payload.get("numberofmaps", len(maps)),
+            "maps": maps
+        }
+
+        print(f"[ALLMAPDATA] 파싱 결과: {parsed}")
+        return parsed
+
     # --- 파서 및 채널 매핑 테이블 테이블 ---
     # 신규 메시지가 추가되면 이 딕셔너리에 '키', '채널', '파서함수'만 등록하면 됩니다.
     PARSER_REGISTRY = {
@@ -93,6 +128,7 @@ class MessageParser:
         "robot_event_update": {"channel": "events", "parser": _parse_robot_events.__func__},
         "event_detected": {"channel": "events", "parser": _parse_va_meta.__func__},
         "event_finished": {"channel": "events", "parser": _parse_va_meta.__func__},
+        "allmapdata": {"channel": "maps", "parser": _parse_all_map_data.__func__},
     }
 
     @staticmethod
