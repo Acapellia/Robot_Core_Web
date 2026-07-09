@@ -98,7 +98,10 @@ class MessageParser:
                 logger.error(f"맵({m.get('filename')}) Base64 디코딩 실패: {e}")
                 decoded_pcd = ""
 
-            image_path = PCDMapParser.parse_and_save(decoded_pcd, m.get("filename"))
+            delivery = PCDMapParser.parse_render_and_deliver(decoded_pcd, m.get("filename"))
+            image_path = delivery["image_path"] if delivery else None
+            image_data = delivery["image_data"] if delivery else None
+            image_transform = delivery["image_transform"] if delivery else None
             if image_path:
                 print(f"[ALLMAPDATA] '{m.get('filename')}' 2D 탑뷰 이미지 저장 완료: {image_path}")
 
@@ -109,13 +112,13 @@ class MessageParser:
                 "datasize": m.get("datasize"),
                 "pcd_data": decoded_pcd,
                 "image_path": image_path,
+                "image_data": image_data,
+                "image_transform": image_transform,
                 "graph_nodes": m.get("graphnodes", []),
                 "graph_edges": m.get("graphedges", []),
                 "waypoints": m.get("waypoints", []),
             }
             maps.append(map_info)
-
-            print(f"[ALLMAPDATA] '{map_info['filename']}' 디코딩된 PCD 내용:\n{decoded_pcd}")
 
         parsed = {
             "type": "ALL_MAP_DATA_UPDATE",
@@ -123,7 +126,6 @@ class MessageParser:
             "maps": maps
         }
 
-        print(f"[ALLMAPDATA] 파싱 결과: {parsed}")
         return parsed
 
     # --- 파서 및 채널 매핑 테이블 테이블 ---

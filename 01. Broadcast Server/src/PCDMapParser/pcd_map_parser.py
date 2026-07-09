@@ -1,3 +1,5 @@
+import base64
+import io
 import logging
 import os
 from typing import Optional
@@ -119,12 +121,42 @@ def render_topview_image(points: np.ndarray, pixel_size: float = 0.05, padding: 
     return image
 
 
+def compute_topview_transform(points: np.ndarray, pixel_size: float = 0.05, padding: int = 5) -> dict:
+    """render_topview_image와 동일한 공식으로 world(x, y) -> 이미지 픽셀 변환에 필요한 기준값을 계산한다.
+    프론트엔드가 이 값으로 graph_nodes/graph_edges/waypoints/로봇 위치를 이미지와 같은 좌표계로 그릴 수 있다."""
+    x, y = points[:, 0], points[:, 1]
+    x_min, x_max = float(np.min(x)), float(np.max(x))
+    y_min, y_max = float(np.min(y)), float(np.max(y))
+
+    img_w = max(int((x_max - x_min) / pixel_size) + padding * 2, 10)
+    img_h = max(int((y_max - y_min) / pixel_size) + padding * 2, 10)
+
+    return {
+        "x_min": x_min,
+        "x_max": x_max,
+        "y_min": y_min,
+        "y_max": y_max,
+        "pixel_size": pixel_size,
+        "padding": padding,
+        "img_w": img_w,
+        "img_h": img_h,
+    }
+
+
 def save_image(image: np.ndarray, save_path: str) -> str:
     out_dir = os.path.dirname(save_path)
     if out_dir:
         os.makedirs(out_dir, exist_ok=True)
     Image.fromarray(image, mode="RGB").save(save_path)
     return save_path
+
+
+def encode_image_base64(image: np.ndarray) -> str:
+    """렌더링된 이미지를 파일로 저장하지 않고 PNG base64 data URL 문자열로 인코딩한다."""
+    buffer = io.BytesIO()
+    Image.fromarray(image, mode="RGB").save(buffer, format="PNG")
+    encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
+    return f"data:image/png;base64,{encoded}"
 
 
 class PCDMapParser:
@@ -163,4 +195,48 @@ class PCDMapParser:
             return None
         except Exception as e:
             logger.error(f"[PCDMapParser] '{filename}' 탑뷰 이미지 생성/저장 실패: {e}")
+            return None
+
+    @classmethod
+    def parse_render_and_deliver(
+        cls,
+        pcd_text: str,
+        filename: Optional[str] = None,
+        output_dir: Optional[str] = None,
+        pixel_size: Optional[float] = None,
+        padding: Optional[int] = None,
+    ) -> Optional[dict]:
+        """PCD 텍스트를 한 번만 파싱/렌더링해 파일로 저장(parse_and_save와 동일한 저장 경로/포맷)하면서,
+        웹으로 전달할 base64 이미지 데이터도 함께 반환한다. 실패하면 None을 반환한다."""
+        try:
+            points = parse_ascii_pcd(pcd_text)
+            print(f"[PCDMapParser] '{filename}' 파싱된 포인트 좌표 ({len(points)}개):\n{points}")
+            filtered_points = filter_floor_ceiling(points)
+            resolved_pixel_size = pixel_size or cls.DEFAULT_PIXEL_SIZE
+            resolved_padding = padding if padding is not None else cls.DEFAULT_PADDING
+
+            image = render_topview_image(
+                filtered_points,
+                pixel_size=resolved_pixel_size,
+                padding=resolved_padding,
+            )
+            transform = compute_topview_transform(
+                filtered_points,
+                pixel_size=resolved_pixel_size,
+                padding=resolved_padding,
+            )
+
+            base_name = os.path.splitext(os.path.basename(filename))[0] if filename else "map"
+            save_path = os.path.join(output_dir or cls.DEFAULT_OUTPUT_DIR, f"topview-{base_name}.png")
+
+            return {
+                "image_path": save_image(image, save_path),
+                "image_data": encode_image_base64(image),
+                "image_transform": transform,
+            }
+        except PCDParseError as e:
+            logger.warning(f"[PCDMapParser] '{filename}' PCD 파싱 실패: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"[PCDMapParser] '{filename}' 탑뷰 이미지 생성/저장/인코딩 실패: {e}")
             return None

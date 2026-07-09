@@ -124,6 +124,7 @@ class BroadcastManager:
         self.telemetry_broker = DownstreamChannelBroker(channel_name="Telemetry")
         self.events_broker = DownstreamChannelBroker(channel_name="Events")
         self.control_broker = DownstreamChannelBroker(channel_name="Control")
+        self.maps_broker = DownstreamChannelBroker(channel_name="Maps")
         
         # ⭐️ [카메라 스트림 전담 모듈 컴포지션 결합]
         self.camera_manager = CameraStreamManager()
@@ -174,6 +175,8 @@ class BroadcastManager:
 
                 if target == "events":
                     await self.events_broker.broadcast(parsed_msg)
+                elif target == "maps":
+                    await self.maps_broker.broadcast(parsed_msg)
                 else:
                     await self.telemetry_broker.broadcast(parsed_msg)
                     
@@ -239,6 +242,19 @@ async def telemetry_endpoint(websocket: WebSocket):
     except Exception as e:
         logger.error(f"Telemetry 통신 예외 에러: {e}")
         manager.telemetry_broker.disconnect(websocket)
+
+
+@app.websocket("/ws/robots/maps")
+async def maps_endpoint(websocket: WebSocket):
+    await manager.maps_broker.connect(websocket)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.maps_broker.disconnect(websocket)
+    except Exception as e:
+        logger.error(f"Maps 통신 예외 에러: {e}")
+        manager.maps_broker.disconnect(websocket)
 
 
 @app.websocket("/ws/robots/events")
