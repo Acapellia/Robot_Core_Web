@@ -100,8 +100,6 @@ class CameraStreamManager:
         self, slot: int, url: str, username: str = None, password: str = None
     ):
         """[외부 호출용] 특정 슬롯(채널)의 RTSP 스트리밍 및 감시 루프를 시작합니다."""
-        # stop_rtsp_stream 안에서 flag를 끄므로 여기서 미리 끄지 않는다.
-        # 미리 끄면 기존 supervisor의 finally 블록이 flag=False를 보고 재시작을 포기하는 race condition 발생.
         await self.stop_rtsp_stream(slot)
 
         if slot not in self.live_brokers:
@@ -163,9 +161,19 @@ class CameraStreamManager:
                     f"운영 시간: {elapsed:.1f}초, 수신 프레임: {frames}장, "
                     f"FFmpeg PID: {proc.pid}, returncode: {proc.returncode}"
                 )
-                # 4. 프로세스 종료 및 자원 정리
+                
+                # [개선] 로그 수집 태스크를 비동기적으로 안전하게 취소 및 대기
                 stderr_task.cancel()
+                try:
+                    await asyncio.wait_for(stderr_task, timeout=1.0)
+                except Exception:
+                    pass
+
+                # 4. 프로세스 종료 및 자원 정리 (타임아웃을 적용해 무한 블로킹 차단)
                 await self._kill_process(proc)
+                
+                if self.stream_procs.get(slot) == proc:
+                    self.stream_procs.pop(slot, None)
 
                 # 복구 대기
                 if self.keep_alive_flags.get(slot, False):
@@ -185,22 +193,20 @@ class CameraStreamManager:
     async def _start_ffmpeg_process(
         self, input_url: str
     ) -> asyncio.subprocess.Process:
-        """FFmpeg 명령어를 조립하여 프로세스를 실행합니다."""
+        """FFmpeg 명령어를 조립하여 프로세스를 실행합니다. (실시간성 강화 및 분홍 화면 깨짐 방지)"""
         cmd = [
             "ffmpeg",
-            "-rtsp_transport",
-            "tcp",
-            # "-timeout",
-            # "5",  # TCP 모드에서 접속 및 세션 유지 통합 타임아웃 (5초)
-            "-i",
-            input_url,
+            "-rtsp_transport", "tcp",
+            "-rtsp_flags", "prefer_tcp",     # [개선] TCP 핸드셰이크 안정성 확보
+            "-fflags", "nobuffer",           # [개선] FFmpeg 내부 버퍼를 비워 딜레이 및 데이터 밀림 방지
+            "-flags", "low_delay",           # [개선] 낮은 지연 모드 활성화
+            "-timeout", "5000000",           # [개선] 네트워크 유실 시 FFmpeg 자체 세션 타임아웃 5초 (마이크로초 단위)
+            "-i", input_url,
             "-an",
-            "-c:v",
-            "mjpeg",
-            "-q:v",
-            "5",
-            "-f",
-            "mpjpeg",
+            "-c:v", "mjpeg",
+            "-q:v", "5",                     # 화질 (1~31, 낮을수록 고화질/용량 증가. 여전히 깨진다면 7~8로 조정 권장)
+            "-max_delay", "500000",          # [개선] 최대 지연 한계를 0.5초로 제한
+            "-f", "mpjpeg",
             "-",
         ]
         return await asyncio.create_subprocess_exec(
@@ -246,9 +252,10 @@ class CameraStreamManager:
 
         while self.keep_alive_flags.get(slot, False):
             try:
-                # 7초 동안 데이터가 없으면 타임아웃 발생 (카메라 먹통 감지)
+                # [개선] 청크 수신 단위를 32KB -> 256KB(262144)로 대폭 확장하여,
+                # 대용량 JPEG 데이터 전송 시 파이프 버퍼 누락으로 인한 픽셀 깨짐(분홍색 화면) 방지
                 chunk = await asyncio.wait_for(
-                    proc.stdout.read(32768), timeout=7.0
+                    proc.stdout.read(262144), timeout=30.0
                 )
             except asyncio.TimeoutError:
                 idle = time.time() - self._last_frame_time.get(slot, time.time())
@@ -318,34 +325,20 @@ class CameraStreamManager:
             self._frame_counts[slot] = self._frame_counts.get(slot, 0) + 1
             self._last_frame_time[slot] = time.time()
 
-            # (선택) 디버깅용 실시간 스냅샷 저장
-            # self._save_debug_snapshot(image_payload)
-
             # 웹소켓 통신 규격용 24바이트 헤더 조립
             header = self._create_protocol_header(len(image_payload))
 
             # 웹소켓 브로커를 통해 대기 중인 모든 클라이언트에게 전송
             await broker.broadcast_binary(header + image_payload)
 
-    def _save_debug_snapshot(self, image_payload: bytes):
-        """가장 최근 프레임을 디스크에 로컬 이미지 파일로 저장합니다."""
-        try:
-            with Image.open(io.BytesIO(image_payload)) as img:
-                img.save("./last_frame.jpg", "JPEG")
-        except Exception as file_err:
-            logger.debug(
-                f"[디버그] 프레임 조립 중 일시적 유실 패스: {file_err}"
-            )
-
     def _create_protocol_header(self, payload_len: int) -> bytes:
         """프론트엔드와 수신 약속된 고유의 24바이트 바이너리 헤더를 생성합니다."""
         magic = 0x7a
-        type_byte = (2 << 4) | (3 & 0x0f)  # 프로토콜 상의 약속된 타입 값 비트 연산
+        type_byte = (2 << 4) | (3 & 0x0f)
         now = time.time()
         pts_sec = int(now)
         pts_usec = int((now - pts_sec) * 1_000_000)
 
-        # 빅 엔디안(>) 포맷으로 패킹
         return struct.pack(
             ">BBBBIIIII",
             magic,
@@ -360,13 +353,26 @@ class CameraStreamManager:
         )
 
     async def _kill_process(self, proc: asyncio.subprocess.Process):
-        """안전하게 서브 프로세스를 강제 종료하고 자원을 반환합니다."""
+        """안전하게 서브 프로세스를 강제 종료하고 자원을 반환합니다. (무한 락 방지 타임아웃 추가)"""
         if proc:
+            if proc.returncode is not None:
+                return
             try:
+                # 1차 부드러운 종료 시도
+                proc.terminate()
+                try:
+                    await asyncio.wait_for(proc.wait(), timeout=1.5)
+                    return
+                except asyncio.TimeoutError:
+                    logger.warning(f"[Process Kill] PID {proc.pid} terminate 타임아웃. 강제 kill 시도.")
+                
+                # 2차 강제 매각 시도
                 proc.kill()
-                await proc.wait()
-            except Exception:
-                pass
+                await asyncio.wait_for(proc.wait(), timeout=2.0)
+            except asyncio.TimeoutError:
+                logger.error(f"[Process Kill] PID {proc.pid}가 강제 종료(kill) 이후에도 종료되지 않는 좀비 상태입니다.")
+            except Exception as e:
+                logger.debug(f"[Process Kill] 프로세스 자원 해제 중 예외 발생: {e}")
 
     async def stop_rtsp_stream(self, slot: int):
         """[외부 호출용] 특정 슬롯의 모니터링 플래그를 끄고 모든 자원을 해제합니다."""
