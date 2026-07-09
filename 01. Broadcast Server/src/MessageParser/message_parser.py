@@ -7,6 +7,8 @@ import base64
 from datetime import datetime
 from typing import Optional
 
+from src.PCDMapParser import PCDMapParser
+
 logger = logging.getLogger("MessageParser")
 
 # 메시지 별 API 채널 및 타입 정의를 하나의 메타데이터 구조로 관리
@@ -96,12 +98,17 @@ class MessageParser:
                 logger.error(f"맵({m.get('filename')}) Base64 디코딩 실패: {e}")
                 decoded_pcd = ""
 
+            image_path = PCDMapParser.parse_and_save(decoded_pcd, m.get("filename"))
+            if image_path:
+                print(f"[ALLMAPDATA] '{m.get('filename')}' 2D 탑뷰 이미지 저장 완료: {image_path}")
+
             map_info = {
                 "filename": m.get("filename"),
                 "frame_id": m.get("frame_id"),
                 "encoding": m.get("encoding"),
                 "datasize": m.get("datasize"),
                 "pcd_data": decoded_pcd,
+                "image_path": image_path,
                 "graph_nodes": m.get("graphnodes", []),
                 "graph_edges": m.get("graphedges", []),
                 "waypoints": m.get("waypoints", []),
