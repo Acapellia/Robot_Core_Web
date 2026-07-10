@@ -100,6 +100,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { storeToRefs } from 'pinia';
 import { useRobotMap } from '../../composables/useRobotMap';
 import { useRobotMapStore } from '../../stores/robotMapStore';
 import { useRobotStore } from '../../stores/robotStore';
@@ -111,6 +112,14 @@ const { zoomLevel, zoomIn, zoomOut } = useRobotMap();
 const mapStore = useRobotMapStore();
 const robotStore = useRobotStore();
 const hubStore = useHubStore();
+const { hubs, selectedHubId } = storeToRefs(hubStore);
+
+// HubManagement(RobotCoreSetting.vue)에서 선택된 허브(로봇)에 맞춰 표시할 맵을 결정한다
+const selectedHubSource = computed(() => {
+  const hub = hubs.value.find((h) => h.ip === selectedHubId.value);
+  return hub ? `hub_${hub.ip}_${hub.port}` : null;
+});
+watch(selectedHubSource, (source) => mapStore.setActiveSource(source), { immediate: true });
 
 const spatialViewportRef = ref<HTMLDivElement | null>(null);
 const mapCanvasRef = ref<HTMLCanvasElement | null>(null);
@@ -306,7 +315,7 @@ function saveWaypoints() {
     return;
   }
 
-  const robotId = robotStore.robots.find((r) => r.telemetry.currentMap === map.filename)?.id ?? null;
+  const robotId = robotStore.robots.find((r) => r.hubSource === selectedHubSource.value)?.id ?? null;
 
   const sent = hubStore.sendControlMessage({
     type: 'set_patrol_route',

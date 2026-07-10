@@ -38,10 +38,6 @@
             <canvas ref="mapCanvasRef" class="map-canvas" width="400" height="400"></canvas>
           </div>
 
-          <div v-if="mapStore.currentMap" class="map-filename-label">
-            {{ mapStore.currentMap.filename }}
-          </div>
-
         </div>
 
         <button
@@ -53,19 +49,31 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
         </button>
 
+        <div v-if="mapStore.currentMap" class="map-filename-label">
+          {{ mapStore.currentMap.filename }}
+        </div>
+
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { storeToRefs } from 'pinia';
 import { useRobotMap } from '../../composables/useRobotMap';
 import { useRobotMapStore } from '../../stores/robotMapStore';
+import { useRobotStore } from '../../stores/robotStore';
 import { renderMapToCanvas } from '../../utils/mapCanvasRenderer';
 
 const { mapInfo, zoomLevel, zoomIn, zoomOut } = useRobotMap();
 const mapStore = useRobotMapStore();
+const robotStore = useRobotStore();
+const { robots, selectedRobotId } = storeToRefs(robotStore);
+
+// RobotSelect.vue에서 선택된 로봇이 어느 허브에서 온 데이터인지로 표시할 맵을 결정한다
+const selectedHubSource = computed(() => robots.value.find((r) => r.id === selectedRobotId.value)?.hubSource || null);
+watch(selectedHubSource, (source) => mapStore.setActiveSource(source), { immediate: true });
 
 // 맵 이미지(canvas) 위에 graph_nodes / graph_edges / waypoints를 벡터로 겹쳐 그리는 렌더러
 const mapCanvasRef = ref<HTMLCanvasElement | null>(null);
@@ -237,15 +245,15 @@ onUnmounted(() => {
 }
 .map-nav-btn svg { width: 100%; height: 100%; }
 
-/* 맵 하단의 파일명 라벨 (기존 로봇이름/상태 라벨 위치보다 조금 더 아래쪽) */
+/* 맵 하단의 파일명 라벨: 이미지(canvas-space) 밖, 뷰포트 기준으로 고정하여 줌 배율 영향을 받지 않음 */
 .map-filename-label {
   position: absolute;
-  bottom: 14px;
+  bottom: 10px;
   left: 50%;
   transform: translateX(-50%);
   text-align: center;
   z-index: 5;
-  font-size: 14px;
+  font-size: 20px;
   font-weight: 700;
   color: #1b2559;
 }

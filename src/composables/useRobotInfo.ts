@@ -61,7 +61,7 @@ export function useRobotInfo() {
         mockDetail.isOnline = main.telemetry.isOnline ?? mockDetail.isOnline;
         mockDetail.statusLabel = STATE_CODE_LABELS[main.telemetry.statecode ?? 0] ?? STATE_CODE_LABELS[0];
         mockDetail.battery = main.telemetry.battery ?? mockDetail.battery;
-        mockDetail.mode = main.telemetry.isManual ? 'Manual' : (main.telemetry.locomotionMode || 'Auto');
+        mockDetail.mode = main.telemetry.isManual ? 'MANUAL' : (main.telemetry.locomotionMode ? 'AUTO' : mockDetail.mode);
         mockDetail.voiceOn = main.telemetry.isVoiceActive ?? mockDetail.voiceOn;
         mockDetail.currentMap = main.telemetry.currentMap ?? mockDetail.currentMap;
         mockDetail.uptime = main.telemetry.uptime ?? mockDetail.uptime;

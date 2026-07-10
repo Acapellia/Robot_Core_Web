@@ -32,12 +32,29 @@ export interface RobotMapItem {
 }
 
 export const useRobotMapStore = defineStore('robotMap', () => {
-    const maps = ref<RobotMapItem[]>([]);
-    const currentIndex = ref<number>(0);
+    // ALL_MAP_DATA_UPDATE는 허브(로봇)마다 독립적으로 도착하므로, 허브 연결 식별자(예: hub_{ip}_{port})별로
+    // 맵 목록을 분리 보관한다. 이렇게 하지 않으면 여러 로봇의 맵이 하나의 배열에 뒤섞여 마지막으로 수신한
+    // 허브의 맵만 항상 표시되는 문제가 생긴다.
+    const mapsBySource = ref<Record<string, RobotMapItem[]>>({});
+    const currentIndexBySource = ref<Record<string, number>>({});
+    // 화면에 표시할 대상 허브의 소스 키. 사용하는 컴포넌트가 선택된 로봇/허브에 맞춰 설정한다.
+    const activeSource = ref<string | null>(null);
 
     let socket: WebSocket | null = null;
 
+    const maps = computed<RobotMapItem[]>(() =>
+        activeSource.value ? mapsBySource.value[activeSource.value] ?? [] : []
+    );
+
+    const currentIndex = computed<number>(() =>
+        activeSource.value ? currentIndexBySource.value[activeSource.value] ?? 0 : 0
+    );
+
     const currentMap = computed<RobotMapItem | null>(() => maps.value[currentIndex.value] ?? null);
+
+    const setActiveSource = (source: string | null) => {
+        activeSource.value = source;
+    };
 
     /**
      * 🔌 /ws/robots/maps 전용 채널로부터 ALL_MAP_DATA_UPDATE 패킷을 실시간으로 전달받는 코어 액션
@@ -51,11 +68,13 @@ export const useRobotMapStore = defineStore('robotMap', () => {
             try {
                 const response = JSON.parse(event.data);
                 const payload = response.payload;
+                // 이 맵 목록을 보낸 허브 연결 식별자 (예: hub_{ip}_{port})
+                const source: string | undefined = response.source;
 
-                if (!payload) return;
+                if (!payload || !source) return;
 
                 if (payload.type === 'ALL_MAP_DATA_UPDATE') {
-                    updateMaps(payload.maps ?? []);
+                    updateMaps(source, payload.maps ?? []);
                 }
             } catch (error) {
                 console.error('맵 스토어 실시간 소켓 바인딩 실패:', error);
@@ -74,33 +93,46 @@ export const useRobotMapStore = defineStore('robotMap', () => {
     };
 
     /**
-     * 🚚 수신한 맵 전체 목록으로 스토어를 통째로 동기화하는 액션
+     * 🚚 특정 허브로부터 수신한 맵 전체 목록으로 해당 허브분만 동기화하는 액션
      */
-    const updateMaps = (incomingMaps: RobotMapItem[]) => {
-        maps.value = incomingMaps;
-        if (currentIndex.value >= incomingMaps.length) {
-            currentIndex.value = 0;
+    const updateMaps = (source: string, incomingMaps: RobotMapItem[]) => {
+        mapsBySource.value = { ...mapsBySource.value, [source]: incomingMaps };
+        const idx = currentIndexBySource.value[source] ?? 0;
+        if (idx >= incomingMaps.length) {
+            currentIndexBySource.value = { ...currentIndexBySource.value, [source]: 0 };
         }
     };
 
     const nextMap = () => {
-        if (maps.value.length === 0) return;
-        currentIndex.value = (currentIndex.value + 1) % maps.value.length;
+        const source = activeSource.value;
+        if (!source) return;
+        const list = mapsBySource.value[source] ?? [];
+        if (list.length === 0) return;
+        const idx = currentIndexBySource.value[source] ?? 0;
+        currentIndexBySource.value = { ...currentIndexBySource.value, [source]: (idx + 1) % list.length };
     };
 
     const prevMap = () => {
-        if (maps.value.length === 0) return;
-        currentIndex.value = (currentIndex.value - 1 + maps.value.length) % maps.value.length;
+        const source = activeSource.value;
+        if (!source) return;
+        const list = mapsBySource.value[source] ?? [];
+        if (list.length === 0) return;
+        const idx = currentIndexBySource.value[source] ?? 0;
+        currentIndexBySource.value = { ...currentIndexBySource.value, [source]: (idx - 1 + list.length) % list.length };
     };
 
     /**
      * ✍️ 순찰 웨이포인트 저장 성공 직후, 허브 ack를 기다리지 않고 현재 맵에 낙관적으로 반영하는 액션.
-     * Dashboard의 RobotMap.vue도 동일 스토어를 구독하므로 즉시 함께 갱신된다.
+     * Dashboard의 RobotMap.vue도 동일 스토어를 구독하므로, 같은 허브가 선택되어 있다면 즉시 함께 갱신된다.
      */
     const setWaypointsForCurrentMap = (waypoints: { x: number; y: number }[]) => {
+        const source = activeSource.value;
         const map = currentMap.value;
-        if (!map) return;
-        maps.value = maps.value.map((m) => (m === map ? { ...m, waypoints } : m));
+        if (!source || !map) return;
+        mapsBySource.value = {
+            ...mapsBySource.value,
+            [source]: (mapsBySource.value[source] ?? []).map((m) => (m === map ? { ...m, waypoints } : m))
+        };
     };
 
     function stopMonitoring() {
@@ -114,6 +146,8 @@ export const useRobotMapStore = defineStore('robotMap', () => {
         maps,
         currentIndex,
         currentMap,
+        activeSource,
+        setActiveSource,
         connectWebSocket,
         updateMaps,
         nextMap,

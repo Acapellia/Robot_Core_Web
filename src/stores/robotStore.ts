@@ -21,6 +21,7 @@ export interface RobotItem {
     telemetry: RobotTelemetry;
     isMain: boolean;
     imageUrl: string; // 백엔드 API에서 받아올 로봇 이미지 URL 필드
+    hubSource: string; // 이 로봇 데이터를 전달한 허브 연결 식별자 (예: hub_{ip}_{port}). 맵 데이터와 로봇을 매칭하는 키로 사용된다.
 }
 
 // Mock data (실시간 소켓이 연결되므로 비워둡니다)
@@ -46,16 +47,18 @@ export const useRobotStore = defineStore('robot', () => {
             try {
                 const response = JSON.parse(event.data);
                 const payload = response.payload;
+                // 이 메시지를 보낸 허브 연결 식별자 (예: hub_{ip}_{port}). 로봇별 맵 매칭에 사용된다.
+                const source: string | null = response.source ?? null;
 
                 if (!payload) return;
 
                 // 1. 중계기 MessageParser가 가공한 전체 로봇 목록 패킷인 경우
                 if (payload.type === 'ROBOT_LIST_UPDATE') {
-                    updateRobotList(payload.robots);
-                } 
+                    updateRobotList(payload.robots, source);
+                }
                 // 2. 개별 로봇 텔레메트리 업데이트 패킷인 경우
                 else if (payload.type === 'ROBOT_STATE_UPDATE') {
-                    updateRobotStates(payload.robot_states);
+                    updateRobotStates(payload.robot_states, source);
                 }
             } catch (error) {
                 console.error('스토어 실시간 소켓 바인딩 실패:', error);
@@ -76,16 +79,17 @@ export const useRobotStore = defineStore('robot', () => {
     /**
      * 🚚 [목록 갱신] 중계기로부터 로봇 전체 목록 배열을 받아 창고를 통째로 동기화하는 액션
      */
-    const updateRobotList = (incomingRobots: RobotItem[]) => {
+    const updateRobotList = (incomingRobots: RobotItem[], source: string | null) => {
         incomingRobots.forEach((newRobot) => {
             const existing = robots.value.find(r => r.id === newRobot.id);
             if (existing) {
                 // 기존에 존재하면 네트워크 정보 최신화 (컨트롤 제어 목적)
                 existing.robot_ip = newRobot.robot_ip;
                 existing.robot_port = newRobot.robot_port;
+                if (source) existing.hubSource = source;
             } else {
                 // 새로운 로봇인 경우 기본 객체를 보강하여 밀어넣기 (isMain은 기본 false)
-                robots.value.push({ ...newRobot, isMain: false });
+                robots.value.push({ ...newRobot, isMain: false, hubSource: source ?? '' });
             }
         });
 
@@ -97,12 +101,13 @@ export const useRobotStore = defineStore('robot', () => {
         }
     };
 
-    const updateRobotStates = (robotStates: RobotItem[]) => {
+    const updateRobotStates = (robotStates: RobotItem[], source: string | null) => {
         robotStates.forEach((updated) => {
             if (!updated.id) return;
             const existing = robots.value.find(r => r.id === updated.id);
             if (existing) {
                 existing.telemetry = updated.telemetry;
+                if (source) existing.hubSource = source;
             } else {
                 // 로봇 목록 패킷(ROBOT_LIST_UPDATE)보다 상태 패킷이 먼저 도착한 경우를 대비해 신규 항목으로 추가
                 robots.value.push({
@@ -111,7 +116,8 @@ export const useRobotStore = defineStore('robot', () => {
                     robot_port: 0,
                     telemetry: updated.telemetry,
                     isMain: false,
-                    imageUrl: ''
+                    imageUrl: '',
+                    hubSource: source ?? ''
                 });
             }
         });

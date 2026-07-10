@@ -97,7 +97,7 @@ export function drawGraphOverlay(ctx: CanvasRenderingContext2D, canvas: HTMLCanv
       if (i === 0) ctx.moveTo(cx, cy);
       else ctx.lineTo(cx, cy);
     });
-    ctx.strokeStyle = '#b2b8db';
+    ctx.strokeStyle = '#808dd8';
     ctx.lineWidth = 2;
     ctx.setLineDash([6, 6]);
     ctx.stroke();

@@ -65,7 +65,7 @@
             "robotstatus": {
                 "statecode": 6,
                 "ismanual": false,
-                "locomotionmode": "",
+                "locomotionmode": true,
                 "isvoicemoduleactive": true
             },
             "patroldata": { "coursename": "Floor_1_Patrol", "currentwaypointid": 3 },
