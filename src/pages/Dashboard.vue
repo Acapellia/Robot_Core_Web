@@ -118,8 +118,8 @@ const contents = reactive({
     middle: { component: markRaw(RobotInfo), props: {} },
     bottom: { component: markRaw(RobotMap), props: {} },
     // 비율 (0~1)
-    topRatio: 0.35,
-    middleRatio: 0.15,
+    topRatio: 0.29,
+    middleRatio: 0.21,
     // gap between left sub-areas (CSS length)
     gap: '15px',
   },

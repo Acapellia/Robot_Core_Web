@@ -93,6 +93,16 @@ export const useRobotMapStore = defineStore('robotMap', () => {
         currentIndex.value = (currentIndex.value - 1 + maps.value.length) % maps.value.length;
     };
 
+    /**
+     * ✍️ 순찰 웨이포인트 저장 성공 직후, 허브 ack를 기다리지 않고 현재 맵에 낙관적으로 반영하는 액션.
+     * Dashboard의 RobotMap.vue도 동일 스토어를 구독하므로 즉시 함께 갱신된다.
+     */
+    const setWaypointsForCurrentMap = (waypoints: { x: number; y: number }[]) => {
+        const map = currentMap.value;
+        if (!map) return;
+        maps.value = maps.value.map((m) => (m === map ? { ...m, waypoints } : m));
+    };
+
     function stopMonitoring() {
         if (socket) {
             socket.close();
@@ -108,6 +118,7 @@ export const useRobotMapStore = defineStore('robotMap', () => {
         updateMaps,
         nextMap,
         prevMap,
+        setWaypointsForCurrentMap,
         stopMonitoring
     };
 });

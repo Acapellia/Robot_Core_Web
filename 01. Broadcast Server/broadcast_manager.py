@@ -295,7 +295,30 @@ async def control_endpoint(websocket: WebSocket):
                 if conn is not None:
                     task = asyncio.create_task(conn.run_loop())
                     manager.upstream_tasks.append(task)
-                
+
+            if data.get('type') == 'set_patrol_route':
+                hub_conn = next(
+                    (u for u in manager.upstreams
+                     if getattr(u, 'name', '').startswith('hub_') and getattr(u, 'outbound_queue', None) is not None),
+                    None
+                )
+                if hub_conn is None:
+                    logger.warning("[Control] set_patrol_route 요청 실패: 연결된 로봇 허브가 없습니다.")
+                    await websocket.send_text(json.dumps({
+                        "source": "broadcast_manager",
+                        "payload": {"type": "SET_PATROL_ROUTE_FAILED", "reason": "no hub connected"}
+                    }, ensure_ascii=False))
+                else:
+                    header = MessageUtils.make_header(type_="set_patrol_route", protocol_source="UI", protocol_category="REQUEST")
+                    payload = {
+                        "robot_id": data.get("robot_id"),
+                        "map_filename": data.get("map_filename"),
+                        "frame_id": data.get("frame_id"),
+                        "waypoints": data.get("waypoints", []),
+                    }
+                    print(f"[Control] 순찰 웨이포인트 허브 전송: {payload}")
+                    await hub_conn.outbound_queue.put({"header": header, "payload": payload})
+
     except WebSocketDisconnect:
         manager.control_broker.disconnect(websocket)
     except Exception as e:

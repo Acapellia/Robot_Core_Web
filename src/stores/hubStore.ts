@@ -117,6 +117,16 @@ export const useHubStore = defineStore('hub', () => {
     selectedHubId.value = id;
   }
 
+  // 🔀 /ws/control 소켓을 재사용해 임의의 컨트롤 메시지를 허브 쪽으로 보내는 범용 송신 액션
+  // (예: 순찰 웨이포인트 저장). 소켓이 열려있지 않으면 false를 반환해 호출부가 실패 처리할 수 있게 한다.
+  function sendControlMessage(payload: object): boolean {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify(payload));
+      return true;
+    }
+    return false;
+  }
+
   connectWebSocket();
 
   return {
@@ -126,6 +136,7 @@ export const useHubStore = defineStore('hub', () => {
     errorMsg,
     connectWebSocket,
     connectHub,
-    selectHub
+    selectHub,
+    sendControlMessage
   };
 });

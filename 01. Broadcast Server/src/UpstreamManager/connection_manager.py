@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 from functools import partial
@@ -102,7 +103,7 @@ def build_hub_connection(data: dict, manager) -> Optional[PureWebSocketConnectio
         handshake_payload=data.get("handshake"), #[HUB] 실제 허브는 해당 내용 필요
         name=name,
         inbound_queue=manager.raw_message_queue,
-        outbound_queue=None,
+        outbound_queue=asyncio.Queue(),  # 웹 → 허브 방향(예: 순찰 웨이포인트 설정) 송신용
         retry_interval=data.get("retry_interval", 5),
         max_retries=data.get("max_retries", 10),
         on_connect=on_connect,

@@ -19,7 +19,7 @@ class PureWebSocketConnection(BaseConnection):
 
     async def _establish_websocket(self) -> websockets.WebSocketClientProtocol:
         """WebSocket 접속 + 핸드셰이크 전송 + ACK 응답 검증"""
-        ws = await websockets.connect(self.ws_uri, subprotocols=["hub-protocol"])
+        ws = await websockets.connect(self.ws_uri, subprotocols=["hub-protocol"], max_size=None)
         if self.handshake_payload:
             # 1. 핸드셰이크 페이로드 전송
             handshake_msg = json.dumps(self.handshake_payload, ensure_ascii=False)

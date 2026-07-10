@@ -35,7 +35,40 @@ def build_header(tpl: Dict[str, Any], session_id: str | None = None, priority: i
 
 async def handler(websocket, path=None):
     peer = websocket.remote_address
-    print(f"Client connected: {peer}")
+    print(f"Client connected: {peer} (subprotocol={websocket.subprotocol})")
+
+    # 1. 허브(로봇) 역할: broadcast_manager가 접속 직후 보내는 핸드셰이크 요청을 대기
+    try:
+        handshake_msg = await asyncio.wait_for(websocket.recv(), timeout=10.0)
+    except asyncio.TimeoutError:
+        print(f"[Handshake] {peer} 핸드셰이크 메시지 수신 타임아웃, 연결 종료")
+        await websocket.close()
+        return
+    except websockets.exceptions.ConnectionClosed:
+        print(f"[Handshake] {peer} 핸드셰이크 이전에 연결 종료됨")
+        return
+
+    print(f"[Handshake] {peer} 요청 수신: {handshake_msg}")
+    try:
+        handshake_data = json.loads(handshake_msg)
+    except json.JSONDecodeError:
+        handshake_data = {}
+
+    req_header = handshake_data.get("header", {})
+    req_payload = handshake_data.get("payload", {})
+
+    # 2. ACK 응답 전송 (broadcast_manager는 payload.status == "accepted"를 검증함)
+    ack_header = build_header(
+        {"header": {"type": "handshake_ack", "protocol_source": "robot", "protocol_category": "response"}},
+        session_id=req_header.get("sessionid"),
+    )
+    ack_message = {
+        "header": ack_header,
+        "payload": {"status": "accepted", "systemid": req_payload.get("systemid")},
+    }
+    await websocket.send(json.dumps(ack_message, ensure_ascii=False))
+    print(f"[Handshake] {peer} ACK 전송 완료: {ack_message}")
+
     CONNECTED.add(websocket)
     try:
         async for msg in websocket:
@@ -43,7 +76,7 @@ async def handler(websocket, path=None):
     except websockets.exceptions.ConnectionClosed:
         pass
     finally:
-        CONNECTED.remove(websocket)
+        CONNECTED.discard(websocket)
         print(f"Client disconnected: {peer}")
 
 async def send_message(message: Dict[str, Any]):
@@ -177,7 +210,7 @@ async def main():
     parser.add_argument('--templates', default=os.path.join(os.path.dirname(__file__), 'templates.json'))
     args = parser.parse_args()
 
-    server = await websockets.serve(handler, args.host, args.port)
+    server = await websockets.serve(handler, args.host, args.port, subprotocols=["hub-protocol"])
 
     try:
         await cli_loop(args.templates, args.host, args.port)
