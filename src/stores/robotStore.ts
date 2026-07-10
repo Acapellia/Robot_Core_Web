@@ -3,11 +3,13 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 
-export type RobotStatus = 'PATROLLING' | 'IDLE' | 'OFFLINE';
-
 export interface RobotTelemetry {
-    status: RobotStatus;
+    isOnline: boolean;
     battery?: number;
+    statecode?: number;
+    isManual?: boolean;
+    locomotionMode?: string;
+    isVoiceActive?: boolean;
     currentMap?: string;
     uptime?: string;
 }
@@ -97,11 +99,29 @@ export const useRobotStore = defineStore('robot', () => {
 
     const updateRobotStates = (robotStates: RobotItem[]) => {
         robotStates.forEach((updated) => {
+            if (!updated.id) return;
             const existing = robots.value.find(r => r.id === updated.id);
             if (existing) {
                 existing.telemetry = updated.telemetry;
+            } else {
+                // 로봇 목록 패킷(ROBOT_LIST_UPDATE)보다 상태 패킷이 먼저 도착한 경우를 대비해 신규 항목으로 추가
+                robots.value.push({
+                    id: updated.id,
+                    robot_ip: '',
+                    robot_port: 0,
+                    telemetry: updated.telemetry,
+                    isMain: false,
+                    imageUrl: ''
+                });
             }
         });
+
+        // 메인 로봇이 없으면(선택 없음) 리스트의 첫 번째 로봇을 메인으로 세팅
+        const hasMain = robots.value.some(r => r.isMain === true);
+        if (!hasMain && robots.value.length > 0) {
+            selectedRobotId.value = robots.value[0].id;
+            robots.value = robots.value.map((r, i) => ({ ...r, isMain: i === 0 }));
+        }
     };
 
 

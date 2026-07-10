@@ -13,8 +13,8 @@
           <p class="ip-lbl">IP: {{ robotInfo.robot_ip }}</p>
         </div>
 
-        <div :class="['status-badge', robotInfo.status.toLowerCase()]">
-          {{ robotInfo.status }}
+        <div :class="['status-badge', robotInfo.statusLabel.toLowerCase()]">
+          {{ robotInfo.statusLabel }}
         </div>
       </div>
 
@@ -30,10 +30,20 @@
 
       <div class="metrics-grid">
         <div class="metric-card">
+          <span class="metric-label">MODE</span>
+          <span class="metric-value">{{ robotInfo.mode }}</span>
+        </div>
+
+        <div class="metric-card">
+          <span class="metric-label">VOICE</span>
+          <span class="metric-value">{{ robotInfo.voiceOn ? 'ON' : 'OFF' }}</span>
+        </div>
+
+        <div class="metric-card">
           <span class="metric-label">CURRENT MAP</span>
           <span class="metric-value">{{ robotInfo.currentMap }}</span>
         </div>
-        
+
         <div class="metric-card">
           <span class="metric-label">UPTIME</span>
           <span class="metric-value">{{ robotInfo.uptime }}</span>
@@ -50,9 +60,16 @@ const { robotInfo } = useRobotInfo();
 </script>
 
 <style scoped>
-.patrolling { --badge-bg: #ffffff; --badge-color: #1a3ba5; }
+/* robotstatus.statecode 라벨별 배지 색상 */
+.unknown { --badge-bg: #a3aed0; --badge-color: #ffffff; }
+.poweredoff { --badge-bg: #707eae; --badge-color: #ffffff; }
+.initializing { --badge-bg: #4318ff; --badge-color: #ffffff; }
 .idle { --badge-bg: #ff9f43; --badge-color: #ffffff; }
-.offline { --badge-bg: #a3aed0; --badge-color: #ffffff; }
+.sitting { --badge-bg: #a3aed0; --badge-color: #ffffff; }
+.standing { --badge-bg: #2b3674; --badge-color: #ffffff; }
+.moving { --badge-bg: #05cd99; --badge-color: #ffffff; }
+.recovering { --badge-bg: #ffce20; --badge-color: #1b2559; }
+.error { --badge-bg: #e31a1a; --badge-color: #ffffff; }
 
 /* 💡 가로가 길고 세로가 짧은 컴포넌트 박스 환경 대응 스타일 */
 .robot-info-container {
@@ -93,7 +110,7 @@ const { robotInfo } = useRobotInfo();
   color: #1b2559;
   display: flex;
   align-items: baseline;
-  gap: 6px;
+  margin-bottom: 10px;
 }
 
 .version-lbl {
@@ -111,9 +128,9 @@ const { robotInfo } = useRobotInfo();
 
 /* 상태 배지 */
 .status-badge {
-  padding: 4px 10px;
+  padding: 5px 20px;
   border-radius: 6px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.3px;
   background-color: var(--badge-bg);
@@ -125,7 +142,7 @@ const { robotInfo } = useRobotInfo();
   display: flex;
   flex-direction: column;
   width: 100%;
-  gap: 4px;
+  gap: 5px;
 }
 
 .battery-header {
@@ -165,29 +182,37 @@ const { robotInfo } = useRobotInfo();
 .metrics-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  column-gap: 8px;
+  row-gap: 12px; /* 항목 간 시인성을 위해 세로 간격을 더 확보 */
   width: 100%;
+  margin-top: 6px; /* 배터리 영역과의 간격 추가 확보 */
 }
 
 .metric-card {
   background-color: rgba(255, 255, 255, 0.6);
-  padding: 8px 12px; /* 위아래 내부 패딩을 좁혀서 납작하게 변형 */
+  padding: 9px 14px;
   border-radius: 8px;
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  flex-direction: row; /* 종류(라벨)는 왼쪽, 값은 오른쪽에 배치 */
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 30px;
+  box-sizing: border-box;
 }
 
 .metric-label {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   color: #a3aed0;
+  flex-shrink: 0;
 }
 
 .metric-value {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   color: #1a3ba5;
+  text-align: right;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis; /* 글자가 늘어날 때 깨짐 방지 안전장치 */

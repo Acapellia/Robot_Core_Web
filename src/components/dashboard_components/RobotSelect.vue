@@ -44,9 +44,9 @@
             <div class="robot-name">
               {{ robot.id }} <span v-if="robot.isMain" class="main-badge">(Main)</span>
             </div>
-            <div :class="['robot-status', (robot.telemetry?.status || '').toLowerCase()]">
+            <div :class="['robot-status', robot.telemetry?.isOnline ? 'online' : 'offline']">
               <span class="status-dot"></span>
-              {{ robot.telemetry?.status }}
+              {{ robot.telemetry?.isOnline ? 'ONLINE' : 'OFFLINE' }}
             </div>
           </div>
 
@@ -69,8 +69,7 @@ const { robots, selectedRobotId, selectRobot } = useRobotList();
 
 <style scoped>
 /* 테마 상태별 변수 색상 구성 */
-.patrolling { --status-color: #05cd99; }
-.idle { --status-color: #ff9f43; }
+.online { --status-color: #05cd99; }
 .offline { --status-color: #a3aed0; }
 
 /* 💡 가로 패딩 내부 컴포넌트 유동 제어를 위한 정밀 설계 */

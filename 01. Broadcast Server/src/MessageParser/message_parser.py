@@ -51,6 +51,29 @@ class MessageParser:
         }
 
     @staticmethod
+    def _parse_robot_state_update(header: dict, payload: dict) -> dict:
+        # 실제 로봇 허브가 보내는 'robotstate' 패킷은 로봇 1대의 상태를 payload 최상위에 바로 담아 보낸다
+        # (robot_states 배열로 감싸져 있지 않음)
+        battery = payload.get("battery") or {}
+        robotstatus = payload.get("robotstatus") or {}
+        return {
+            "type": "ROBOT_STATE_UPDATE",
+            "robot_states": [
+                {
+                    "id": payload.get("robotname"),
+                    "telemetry": {
+                        "isOnline": payload.get("isonline", False),
+                        "battery": battery.get("level"),
+                        "statecode": robotstatus.get("statecode", 0),
+                        "isManual": robotstatus.get("ismanual", False),
+                        "locomotionMode": robotstatus.get("locomotionmode", ""),
+                        "isVoiceActive": robotstatus.get("isvoicemoduleactive", False),
+                    }
+                }
+            ]
+        }
+
+    @staticmethod
     def _parse_robot_events(header: dict, payload: dict) -> dict:
         return {
             "type": "ROBOT_EVENT_UPDATE",
@@ -133,7 +156,7 @@ class MessageParser:
     PARSER_REGISTRY = {
         "robot_list_update": {"channel": "telemetry", "parser": _parse_robot_list.__func__},
         "robot_state_update": {"channel": "telemetry", "parser": _parse_robot_states.__func__},
-        "robotstate": {"channel": "telemetry", "parser": _parse_robot_states.__func__},
+        "robotstate": {"channel": "telemetry", "parser": _parse_robot_state_update.__func__},
         "robot_event_update": {"channel": "events", "parser": _parse_robot_events.__func__},
         "event_detected": {"channel": "events", "parser": _parse_va_meta.__func__},
         "event_finished": {"channel": "events", "parser": _parse_va_meta.__func__},

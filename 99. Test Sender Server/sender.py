@@ -171,18 +171,15 @@ async def cli_loop(templates_path: str, host: str, port: int):
         # 템플릿의 header와 payload를 가져옵니다
         payload = tpl.get('payload', {})
 
-        # robot_state 템플릿이면 각 로봇의 battery와 uptime을 랜덤으로 재설정
+        # robot_state 템플릿이면 실제 허브의 robotstate 패킷 형태(battery.level, robotstatus.statecode)를 랜덤으로 재설정
         if tpl.get('id') == 'robot_state' or tpl.get('type') == 'robot_state' or tpl.get('title','').lower().find('robot state') != -1:
             payload = copy.deepcopy(payload)
-            robot_states = payload.get('robot_states') or payload.get('robot_states', [])
-            if isinstance(robot_states, list):
-                for state in robot_states:
-                    # battery: 0~100
-                    state['battery'] = random.randint(0, 100)
-                    # uptime: 0h 00m ~ 12h 00m (if 12h then 00m)
-                    h = random.randint(0, 12)
-                    m = 0 if h == 12 else random.randint(0, 59)
-                    state['uptime'] = f"{h}h {m:02d}m"
+            battery = payload.get('battery')
+            if isinstance(battery, dict):
+                battery['level'] = round(random.uniform(0, 100), 1)
+            robotstatus = payload.get('robotstatus')
+            if isinstance(robotstatus, dict):
+                robotstatus['statecode'] = random.randint(0, 8)
 
         # robot events: support both bulk (robot_events array) and single (robot_event) templates
         if (tpl.get('id') == 'robot_events') or (tpl.get('type') == 'robot_event') or (tpl.get('title','').lower().find('robot event') != -1):

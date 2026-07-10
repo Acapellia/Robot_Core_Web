@@ -51,37 +51,25 @@
         "title": "Robot State",
         "header": {
             "version": "1.0",
-            "type": "robot_state_update",
+            "type": "robotstate",
             "sessionid": "0",
-            "protocol_source": "ROBOT",
+            "protocol_source": "HUB",
             "protocol_category": "STATE",
             "priority": 0
         },
         "payload": {
-            "robot_states" : [
-                {
-                    "robot_id" : "NEO-01",
-                    "status": "PATROLLING",
-                    "battery": 0,
-                    "current_map": "Floor_1",
-                    "uptime": "0h 00m"
-                },
-                {
-                    "robot_id" : "NEO-02",
-                    "status": "IDLE",
-                    "battery": 0,
-                    "current_map": "Floor_2",
-                    "uptime": "0h 00m"
-                },
-                {
-                    "robot_id" : "NEO-03",
-                    "status": "OFFLINE",
-                    "battery": 0,
-                    "current_map": "Floor_3",
-                    "uptime": "0h 00m"
-                }
-            ],
-            "Status": { "StateCode": 1 }
+            "robotid": -1,
+            "robotname": "NEO-01",
+            "isonline": true,
+            "battery": { "level": 82.5 },
+            "robotstatus": {
+                "statecode": 6,
+                "ismanual": false,
+                "locomotionmode": "",
+                "isvoicemoduleactive": true
+            },
+            "patroldata": { "coursename": "Floor_1_Patrol", "currentwaypointid": 3 },
+            "movementdata": { "x": 0, "y": 0, "yaw": 0.0, "speed": 0.0 }
         }
     },
     {

@@ -3,13 +3,29 @@ import { ref, onMounted, onUnmounted, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useRobotStore, RobotTelemetry } from '../stores/robotStore';
 
+// robotstatus.statecode 값 -> 표출 라벨 매핑
+const STATE_CODE_LABELS: Record<number, string> = {
+  0: 'Unknown',
+  1: 'PoweredOff',
+  2: 'Initializing',
+  3: 'Idle',
+  4: 'Sitting',
+  5: 'Standing',
+  6: 'Moving',
+  7: 'Recovering',
+  8: 'Error'
+};
+
 // 로봇 정보 클래스 선언
 export interface RobotInfo {
   id: string;
   robot_ip: string;
   robot_port: number;
-  status: string;
+  isOnline: boolean;
+  statusLabel: string;
   battery: number;
+  mode: string;
+  voiceOn: boolean;
   currentMap: string;
   uptime: string;
 }
@@ -28,8 +44,11 @@ export function useRobotInfo() {
         id: '',
         robot_ip: '',
         robot_port: 0,
-        status: 'OFFLINE',
+        isOnline: false,
+        statusLabel: STATE_CODE_LABELS[0],
         battery: 0,
+        mode: '',
+        voiceOn: false,
         currentMap: '',
         uptime: ''
       };
@@ -39,8 +58,11 @@ export function useRobotInfo() {
         mockDetail.id = main.id ?? mockDetail.id;
         mockDetail.robot_ip = main.robot_ip ?? mockDetail.robot_ip;
         mockDetail.robot_port = main.robot_port ?? mockDetail.robot_port;
-        mockDetail.status = main.telemetry.status ?? mockDetail.status;
+        mockDetail.isOnline = main.telemetry.isOnline ?? mockDetail.isOnline;
+        mockDetail.statusLabel = STATE_CODE_LABELS[main.telemetry.statecode ?? 0] ?? STATE_CODE_LABELS[0];
         mockDetail.battery = main.telemetry.battery ?? mockDetail.battery;
+        mockDetail.mode = main.telemetry.isManual ? 'Manual' : (main.telemetry.locomotionMode || 'Auto');
+        mockDetail.voiceOn = main.telemetry.isVoiceActive ?? mockDetail.voiceOn;
         mockDetail.currentMap = main.telemetry.currentMap ?? mockDetail.currentMap;
         mockDetail.uptime = main.telemetry.uptime ?? mockDetail.uptime;
         robotInfo.value = mockDetail;
